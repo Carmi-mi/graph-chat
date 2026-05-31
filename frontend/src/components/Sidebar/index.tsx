@@ -1,5 +1,5 @@
 import React from 'react';
-import { Plus, MessageSquare } from 'lucide-react';
+import { Plus, MessageSquare, Trash2 } from 'lucide-react';
 import type { Conversation } from '../../schemas';
 
 interface SidebarProps {
@@ -8,6 +8,7 @@ interface SidebarProps {
   dirtyBranches: Record<string, string[]>;
   onSelect: (id: string) => void;
   onCreate: () => void;
+  onDelete: (id: string) => void;
 }
 
 const statusColors: Record<Conversation['status'], string> = {
@@ -30,6 +31,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   dirtyBranches,
   onSelect,
   onCreate,
+  onDelete,
 }) => {
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr);
@@ -64,39 +66,50 @@ const Sidebar: React.FC<SidebarProps> = ({
           const hasDirty = (dirtyBranches[conv.id]?.length ?? 0) > 0;
           const isCurrent = currentId === conv.id;
           return (
-          <button
-            key={conv.id}
-            onClick={() => onSelect(conv.id)}
-            className={`w-full text-left px-3 py-2.5 rounded-xl transition-all ${
-              isCurrent
-                ? 'bg-[#667eea]/10 border border-[#667eea]/20'
-                : 'hover:bg-gray-100 border border-transparent'
-            }`}
-          >
-            <div className="flex items-start gap-2">
-              <MessageSquare className="w-4 h-4 text-gray-400 mt-0.5 shrink-0" />
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-1.5">
-                  <p className="text-sm font-medium text-gray-800 truncate">
-                    {conv.name}
-                  </p>
-                  {hasDirty && !isCurrent && (
-                    <span className="shrink-0 w-2 h-2 rounded-full bg-[#667eea]" />
-                  )}
-                </div>
+          <div key={conv.id} className="group relative">
+            <button
+              onClick={() => onSelect(conv.id)}
+              className={`w-full text-left px-3 py-2.5 rounded-xl transition-all ${
+                isCurrent
+                  ? 'bg-[#667eea]/10 border border-[#667eea]/20'
+                  : 'hover:bg-gray-100 border border-transparent'
+              }`}
+            >
+              <div className="flex items-start gap-2">
+                <MessageSquare className="w-4 h-4 text-gray-400 mt-0.5 shrink-0" />
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-1.5">
+                    <p className="text-sm font-medium text-gray-800 truncate">
+                      {conv.name}
+                    </p>
+                    {hasDirty && !isCurrent && (
+                      <span className="shrink-0 w-2 h-2 rounded-full bg-[#667eea]" />
+                    )}
+                  </div>
 
-                <div className="flex items-center gap-2 mt-1">
-                  <span
-                    className={`w-2 h-2 rounded-full ${statusColors[conv.status]}`}
-                    title={statusLabels[conv.status]}
-                  />
-                  <span className="text-xs text-gray-400">
-                    {formatDate(conv.createdAt)}
-                  </span>
+                  <div className="flex items-center gap-2 mt-1">
+                    <span
+                      className={`w-2 h-2 rounded-full ${statusColors[conv.status]}`}
+                      title={statusLabels[conv.status]}
+                    />
+                    <span className="text-xs text-gray-400">
+                      {formatDate(conv.createdAt)}
+                    </span>
+                  </div>
                 </div>
               </div>
-            </div>
-          </button>
+            </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onDelete(conv.id);
+              }}
+              className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 opacity-0 group-hover:opacity-100 transition-all cursor-pointer"
+              title="Delete conversation"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
+          </div>
         );
         })}
       </div>

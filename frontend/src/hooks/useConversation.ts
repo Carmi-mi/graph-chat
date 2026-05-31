@@ -12,6 +12,7 @@ export function useConversation() {
     setConversations,
     setCurrentConversation,
     setCurrentBranchId,
+    removeConversation,
     setLoading,
     setError,
   } = useConversationStore();
@@ -53,6 +54,16 @@ export function useConversation() {
     }
   }, [setConversations, setError, loadConversation]);
 
+  const deleteConversation = useCallback(async (id: string) => {
+    try {
+      await conversationApi.deleteConversation(id);
+      removeConversation(id);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete conversation');
+      throw err;
+    }
+  }, [removeConversation, setError]);
+
   return {
     conversations,
     currentConversation,
@@ -62,6 +73,7 @@ export function useConversation() {
     loadConversations,
     loadConversation,
     createConversation,
+    deleteConversation,
     setCurrentBranchId,
   };
 }

@@ -17,10 +17,17 @@ export function useTextSelection(containerRef: React.RefObject<HTMLElement | nul
   const [selectedText, setSelectedText] = useState('');
   const [position, setPosition] = useState<SelectionPosition | null>(null);
   const isSelecting = useRef(false);
+  const selectedTextRef = useRef('');
+
+  // Keep ref in sync with state
+  useEffect(() => {
+    selectedTextRef.current = selectedText;
+  }, [selectedText]);
 
   const clearSelection = useCallback(() => {
     setSelectedText('');
     setPosition(null);
+    selectedTextRef.current = '';
     window.getSelection()?.removeAllRanges();
   }, []);
 
@@ -28,7 +35,10 @@ export function useTextSelection(containerRef: React.RefObject<HTMLElement | nul
     const container = containerRef.current;
     if (!container) return;
 
-    const handleMouseDown = () => {
+    // --- Selection creation: only inside the message area ---
+    const handleMouseDown = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (target.closest('[data-fork-button]')) return;
       isSelecting.current = true;
     };
 
@@ -59,9 +69,27 @@ export function useTextSelection(containerRef: React.RefObject<HTMLElement | nul
     container.addEventListener('mousedown', handleMouseDown);
     container.addEventListener('mouseup', handleMouseUp);
 
+    // --- Dismissal: global (any interaction except clicking the fork button) ---
+    const handleDismiss = (e: Event) => {
+      if (!selectedTextRef.current) return;
+      const target = e.target as HTMLElement;
+      if (target.closest('[data-fork-button]')) return;
+      if (isSelecting.current) return;
+      setSelectedText('');
+      setPosition(null);
+      selectedTextRef.current = '';
+    };
+
+    document.addEventListener('mousedown', handleDismiss, true);
+    document.addEventListener('scroll', handleDismiss, true);
+    document.addEventListener('keydown', handleDismiss, true);
+
     return () => {
       container.removeEventListener('mousedown', handleMouseDown);
       container.removeEventListener('mouseup', handleMouseUp);
+      document.removeEventListener('mousedown', handleDismiss, true);
+      document.removeEventListener('scroll', handleDismiss, true);
+      document.removeEventListener('keydown', handleDismiss, true);
     };
   }, [containerRef]);
 

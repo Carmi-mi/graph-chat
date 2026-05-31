@@ -31,8 +31,8 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversationId, onNavigate }) =
   const { annotationEnabled, exploringBranches, addExploringBranch, removeExploringBranch, toggleAnnotation } =
     useUIStore();
 
-  const containerRef = useRef<HTMLDivElement>(null);
-  const { selectedText, position, clearSelection } = useTextSelection(containerRef);
+  const messageAreaRef = useRef<HTMLDivElement>(null);
+  const { selectedText, position, clearSelection } = useTextSelection(messageAreaRef);
 
   const [suggestions, setSuggestions] = useState<ForkSuggestion[]>([]);
   const [selectedAnnotation, setSelectedAnnotation] = useState<Annotation | null>(null);
@@ -281,7 +281,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversationId, onNavigate }) =
   }, [currentConversation, currentBranchId]);
 
   return (
-    <div ref={containerRef} className="flex flex-col h-full bg-gradient-to-br from-gray-50 to-gray-100 relative">
+    <div className="flex flex-col h-full bg-gradient-to-br from-gray-50 to-gray-100 relative">
       <Header
         breadcrumbs={breadcrumbs}
         annotationEnabled={annotationEnabled}
@@ -298,16 +298,19 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversationId, onNavigate }) =
       )}
 
       {/* Message list */}
-      <MessageList
-        messages={messages}
-        annotationEnabled={annotationEnabled}
-        onAnnotationClick={handleAnnotationClick}
-        onTextSelect={handleTextSelect}
-      />
+      <div ref={messageAreaRef} className="flex-1 overflow-hidden">
+        <MessageList
+          messages={messages}
+          annotationEnabled={annotationEnabled}
+          onAnnotationClick={handleAnnotationClick}
+          onTextSelect={handleTextSelect}
+        />
+      </div>
 
       {/* Floating fork button for text selection (only for assistant messages) */}
       {selectedText && position && forkingMessageId && (
         <button
+          data-fork-button
           onClick={handleForkText}
           className="fixed z-50 px-3 py-1.5 rounded-lg bg-gradient-to-r from-[#667eea] to-[#764ba2] text-white text-xs font-medium shadow-lg hover:opacity-90 transition-opacity cursor-pointer"
           style={{

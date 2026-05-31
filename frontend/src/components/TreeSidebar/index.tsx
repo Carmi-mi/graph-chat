@@ -1,4 +1,5 @@
 import React, { useMemo } from 'react';
+import { Trash2 } from 'lucide-react';
 import type { ConversationWithTree } from '../../schemas';
 
 interface TreeSidebarProps {
@@ -6,22 +7,27 @@ interface TreeSidebarProps {
   currentBranchId: string | null;
   dirtyBranches: Record<string, string[]>;
   onSelectBranch: (id: string) => void;
+  onDeleteBranch: (id: string) => void;
 }
 
 interface TreeNodeProps {
   node: ConversationWithTree;
   depth: number;
+  isRoot: boolean;
   currentBranchId: string | null;
   dirtySet: Set<string>;
   onSelectBranch: (id: string) => void;
+  onDeleteBranch: (id: string) => void;
 }
 
 const TreeNode: React.FC<TreeNodeProps> = ({
   node,
   depth,
+  isRoot,
   currentBranchId,
   dirtySet,
   onSelectBranch,
+  onDeleteBranch,
 }) => {
   const isActive = node.id === currentBranchId;
   const isDirty = dirtySet.has(node.id);
@@ -40,22 +46,36 @@ const TreeNode: React.FC<TreeNodeProps> = ({
   };
 
   return (
-    <div>
-      <button
-        onClick={() => onSelectBranch(node.id)}
-        className={`w-full text-left px-2 py-1.5 rounded-lg text-sm transition-all flex items-center gap-1.5 ${
-          isActive
-            ? 'bg-[#667eea]/15 text-[#667eea] font-medium'
-            : 'text-gray-600 hover:bg-gray-100'
-        }`}
-        style={{ paddingLeft: `${depth * 16 + 8}px` }}
-      >
-        {statusIcon()}
-        <span className="truncate">{node.name}</span>
-        {isDirty && !isActive && (
-          <span className="ml-auto shrink-0 w-2 h-2 rounded-full bg-[#667eea]" />
+    <div className="group/node">
+      <div className="relative">
+        <button
+          onClick={() => onSelectBranch(node.id)}
+          className={`w-full text-left px-2 py-1.5 rounded-lg text-sm transition-all flex items-center gap-1.5 ${
+            isActive
+              ? 'bg-[#667eea]/15 text-[#667eea] font-medium'
+              : 'text-gray-600 hover:bg-gray-100'
+          }`}
+          style={{ paddingLeft: `${depth * 16 + 8}px` }}
+        >
+          {statusIcon()}
+          <span className="truncate">{node.name}</span>
+          {isDirty && !isActive && (
+            <span className="ml-auto shrink-0 w-2 h-2 rounded-full bg-[#667eea]" />
+          )}
+        </button>
+        {!isRoot && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onDeleteBranch(node.id);
+            }}
+            className="absolute right-1 top-1/2 -translate-y-1/2 p-1 rounded text-gray-400 hover:text-red-500 hover:bg-red-50 opacity-0 group-hover/node:opacity-100 transition-all cursor-pointer"
+            title="Delete branch"
+          >
+            <Trash2 className="w-3 h-3" />
+          </button>
         )}
-      </button>
+      </div>
 
       {node.children.length > 0 && (
         <div>
@@ -64,9 +84,11 @@ const TreeNode: React.FC<TreeNodeProps> = ({
               key={child.id}
               node={child}
               depth={depth + 1}
+              isRoot={false}
               currentBranchId={currentBranchId}
               dirtySet={dirtySet}
               onSelectBranch={onSelectBranch}
+              onDeleteBranch={onDeleteBranch}
             />
           ))}
         </div>
@@ -80,6 +102,7 @@ const TreeSidebar: React.FC<TreeSidebarProps> = ({
   currentBranchId,
   dirtyBranches,
   onSelectBranch,
+  onDeleteBranch,
 }) => {
   const dirtySet = useMemo(
     () => new Set(dirtyBranches[tree.id] ?? []),
@@ -95,9 +118,11 @@ const TreeSidebar: React.FC<TreeSidebarProps> = ({
         <TreeNode
           node={tree}
           depth={0}
+          isRoot={true}
           currentBranchId={currentBranchId}
           dirtySet={dirtySet}
           onSelectBranch={onSelectBranch}
+          onDeleteBranch={onDeleteBranch}
         />
       </div>
     </div>

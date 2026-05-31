@@ -15,6 +15,7 @@ interface ConversationState {
   setCurrentConversation: (conversation: ConversationWithTree | null) => void;
   setCurrentBranchId: (id: string | null) => void;
   updateBranchMessages: (branchId: string, messages: Message[]) => void;
+  removeConversation: (id: string) => void;
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
   clearError: () => void;
@@ -53,6 +54,17 @@ const useConversationStore = create<ConversationState>()(
           };
 
           return { currentConversation: updateNode(state.currentConversation) };
+        }),
+
+      removeConversation: (id) =>
+        set((state) => {
+          const filtered = state.conversations.filter((c) => c.id !== id);
+          const wasCurrent = state.currentConversation?.id === id;
+          return {
+            conversations: filtered,
+            currentConversation: wasCurrent ? null : state.currentConversation,
+            currentBranchId: wasCurrent ? null : state.currentBranchId,
+          };
         }),
 
       setLoading: (isLoading) => set({ isLoading }),

@@ -4,6 +4,7 @@ import Sidebar from './components/Sidebar';
 import ChatWindow from './components/ChatWindow';
 import TreeSidebar from './components/TreeSidebar';
 import MergeModal from './components/MergeModal';
+import ConfirmDialog from './components/ConfirmDialog';
 import { useConversationStore, useUIStore } from './store';
 import * as conversationApi from './api/conversation';
 import * as agentApi from './api/agent';
@@ -22,9 +23,11 @@ function App() {
     setError,
   } = useConversationStore();
 
-  const { sidebarOpen, toggleSidebar, dirtyBranches, removeDirtyBranch } = useUIStore();
+  const { sidebarOpen, toggleSidebar, dirtyBranches, removeDirtyBranch, clearDirtyBranches } = useUIStore();
 
   const [showMergeModal, setShowMergeModal] = useState(false);
+  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
+  const [deleteBranchTargetId, setDeleteBranchTargetId] = useState<string | null>(null);
 
   // Load conversation list on mount
   useEffect(() => {
@@ -119,6 +122,44 @@ function App() {
     [currentConversation, setCurrentConversation, setError],
   );
 
+  // Delete conversation handler
+  const handleDeleteConversation = useCallback(
+    async (id: string) => {
+      try {
+        await conversationApi.deleteConversation(id);
+        setConversations(conversations.filter((c) => c.id !== id));
+        clearDirtyBranches(id);
+        if (currentConversation?.id === id) {
+          setCurrentConversation(null);
+          setCurrentBranchId(null);
+        }
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to delete conversation');
+      }
+    },
+    [conversations, currentConversation, setConversations, setCurrentConversation, setCurrentBranchId, clearDirtyBranches, setError],
+  );
+
+  // Delete branch handler
+  const handleDeleteBranch = useCallback(
+    async (id: string) => {
+      if (!currentConversation) return;
+      try {
+        await conversationApi.deleteConversation(id);
+        // Refresh the conversation tree
+        const conv = await conversationApi.getConversation(currentConversation.id);
+        setCurrentConversation(conv);
+        // If deleted branch was selected, switch to root
+        if (currentBranchId === id) {
+          setCurrentBranchId(currentConversation.id);
+        }
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to delete branch');
+      }
+    },
+    [currentConversation, currentBranchId, setCurrentConversation, setCurrentBranchId, setError],
+  );
+
   const hasChildren = currentConversation != null && currentConversation.children.length > 0;
 
   return (
@@ -131,6 +172,7 @@ function App() {
           dirtyBranches={dirtyBranches}
           onSelect={handleSelectConversation}
           onCreate={handleCreateConversation}
+          onDelete={(id) => setDeleteTargetId(id)}
         />
       )}
 
@@ -162,6 +204,7 @@ function App() {
           currentBranchId={currentBranchId}
           dirtyBranches={dirtyBranches}
           onSelectBranch={handleSelectBranch}
+          onDeleteBranch={(id) => setDeleteBranchTargetId(id)}
         />
       )}
 
@@ -183,6 +226,38 @@ function App() {
           tree={currentConversation}
           onMerge={handleMerge}
           onClose={() => setShowMergeModal(false)}
+        />
+      )}
+
+      {/* Delete conversation confirmation dialog */}
+      {deleteTargetId && (
+        <ConfirmDialog
+          title="Delete Conversation"
+          message="This conversation and all its branches will be permanently deleted. This action cannot be undone."
+          confirmLabel="Delete"
+          cancelLabel="Cancel"
+          danger
+          onConfirm={() => {
+            handleDeleteConversation(deleteTargetId);
+            setDeleteTargetId(null);
+          }}
+          onClose={() => setDeleteTargetId(null)}
+        />
+      )}
+
+      {/* Delete branch confirmation dialog */}
+      {deleteBranchTargetId && (
+        <ConfirmDialog
+          title="Delete Branch"
+          message="This branch and all its sub-branches will be permanently deleted. This action cannot be undone."
+          confirmLabel="Delete"
+          cancelLabel="Cancel"
+          danger
+          onConfirm={() => {
+            handleDeleteBranch(deleteBranchTargetId);
+            setDeleteBranchTargetId(null);
+          }}
+          onClose={() => setDeleteBranchTargetId(null)}
         />
       )}
     </div>
