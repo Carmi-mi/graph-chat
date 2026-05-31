@@ -1,0 +1,1653 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Graph Chat - 协同研究 Agent</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: #f8f9fa;
+            height: 100vh;
+            overflow: hidden;
+            color: #1a1a1a;
+        }
+
+        .app {
+            display: flex;
+            height: 100vh;
+        }
+
+        .chat-area {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
+            background: #fff;
+            position: relative;
+        }
+
+        .header {
+            height: 56px;
+            border-bottom: 1px solid #e8e8e8;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 20px;
+            background: #fff;
+            flex-shrink: 0;
+            z-index: 10;
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .logo {
+            font-size: 18px;
+            font-weight: 600;
+            color: #1a1a1a;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .logo-icon {
+            width: 28px;
+            height: 28px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 14px;
+        }
+
+        .breadcrumb {
+            font-size: 13px;
+            color: #666;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .breadcrumb-sep {
+            color: #ccc;
+        }
+
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .toggle-btn {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            border: 1px solid #e0e0e0;
+            border-radius: 20px;
+            background: #fff;
+            font-size: 13px;
+            color: #666;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .toggle-btn:hover {
+            border-color: #667eea;
+            color: #667eea;
+        }
+
+        .toggle-btn.active {
+            background: #f0f0ff;
+            border-color: #667eea;
+            color: #667eea;
+        }
+
+        .toggle-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #ccc;
+        }
+
+        .toggle-btn.active .toggle-dot {
+            background: #667eea;
+        }
+
+        /* 建议条 */
+        .suggestion-bar {
+            background: linear-gradient(90deg, #f5f3ff 0%, #faf9ff 50%, #fff 100%);
+            border-bottom: 1px solid #e8e8e8;
+            padding: 16px 20%;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            animation: slideDown 0.3s ease;
+        }
+
+        @keyframes slideDown {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .suggestion-main {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+        }
+
+        .suggestion-icon {
+            width: 36px;
+            height: 36px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 18px;
+            flex-shrink: 0;
+            margin-top: 2px;
+        }
+
+        .suggestion-text {
+            font-size: 14px;
+            color: #333;
+            line-height: 1.6;
+            flex: 1;
+        }
+
+        .suggestion-text strong {
+            color: #667eea;
+            font-weight: 600;
+        }
+
+        .suggestion-controls {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            padding-left: 48px;
+        }
+
+        .suggestion-settings {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            font-size: 13px;
+            color: #666;
+        }
+
+        .setting-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .setting-item select {
+            padding: 6px 10px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            background: white;
+            font-size: 13px;
+            outline: none;
+            cursor: pointer;
+        }
+
+        .suggestion-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        .btn {
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: none;
+            font-family: inherit;
+            white-space: nowrap;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            opacity: 0.9;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+        }
+
+        .btn-secondary {
+            background: #f5f5f5;
+            color: #666;
+            border: 1px solid #e0e0e0;
+        }
+
+        .btn-secondary:hover {
+            background: #eee;
+            border-color: #ccc;
+        }
+
+        /* 进度条 */
+        .progress-indicator {
+            padding: 10px 20%;
+            background: #fafafa;
+            border-bottom: 1px solid #f0f0f0;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 13px;
+            color: #666;
+        }
+
+        .progress-dots {
+            display: flex;
+            gap: 6px;
+        }
+
+        .progress-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #ddd;
+            animation: pulse 1.5s infinite;
+        }
+
+        .progress-dot:nth-child(2) { animation-delay: 0.2s; }
+        .progress-dot:nth-child(3) { animation-delay: 0.4s; }
+        .progress-dot:nth-child(4) { animation-delay: 0.6s; }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 0.4; transform: scale(1); }
+            50% { opacity: 1; transform: scale(1.2); }
+        }
+
+        .progress-dot.done {
+            background: #4caf50;
+            animation: none;
+        }
+
+        .messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 24px 20%;
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+
+        .message {
+            display: flex;
+            gap: 12px;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .message-user {
+            flex-direction: row-reverse;
+        }
+
+        .avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 13px;
+            font-weight: 500;
+        }
+
+        .avatar-user {
+            background: #e3f2fd;
+            color: #1976d2;
+        }
+
+        .avatar-ai {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .avatar-system {
+            background: #fff3e0;
+            color: #f57c00;
+        }
+
+        .bubble {
+            max-width: 80%;
+            padding: 12px 16px;
+            line-height: 1.7;
+            font-size: 15px;
+            position: relative;
+        }
+
+        .bubble-user {
+            background: #f0f7ff;
+            border-radius: 16px 16px 4px 16px;
+            color: #1a1a1a;
+        }
+
+        .bubble-ai {
+            background: transparent;
+            padding: 0;
+            color: #1a1a1a;
+        }
+
+        .bubble-ai .content {
+            padding: 12px 16px;
+            background: #f5f5f5;
+            border-radius: 4px 16px 16px 16px;
+            position: relative;
+        }
+
+        .bubble-system {
+            background: #fff8e1;
+            border: 1px solid #ffe0b2;
+            border-radius: 12px;
+            color: #e65100;
+            font-size: 14px;
+        }
+
+        .bubble-system .merge-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: #f57c00;
+        }
+
+        .bubble-system .merge-source {
+            font-size: 12px;
+            color: #999;
+            margin-top: 8px;
+            padding-top: 8px;
+            border-top: 1px dashed #ffe0b2;
+        }
+
+        /* 标注样式 */
+        .annotatable {
+            border-bottom: 1px dotted #999;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            position: relative;
+            color: #1a1a1a;
+        }
+
+        .annotatable:hover {
+            border-bottom-color: #667eea;
+            background: rgba(102, 126, 234, 0.08);
+            color: #667eea;
+        }
+
+        .annotatable.active {
+            border-bottom: 2px solid #667eea;
+            background: rgba(102, 126, 234, 0.12);
+            color: #667eea;
+        }
+
+        .annotations-hidden .annotatable {
+            border-bottom: none;
+            cursor: default;
+            background: transparent;
+            color: inherit;
+        }
+
+        .annotations-hidden .annotatable:hover {
+            border-bottom: none;
+            background: transparent;
+            color: inherit;
+        }
+
+        /* 推荐浮层 */
+        .annotation-popup {
+            position: absolute;
+            left: 0;
+            top: calc(100% + 8px);
+            background: white;
+            border: 1px solid #e8e8e8;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08), 0 1px 3px rgba(0,0,0,0.05);
+            padding: 12px;
+            min-width: 240px;
+            z-index: 100;
+            animation: popIn 0.2s ease;
+        }
+
+        @keyframes popIn {
+            from { opacity: 0; transform: translateY(-4px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .annotation-popup::before {
+            content: '';
+            position: absolute;
+            top: -5px;
+            left: 20px;
+            width: 10px;
+            height: 10px;
+            background: white;
+            border-left: 1px solid #e8e8e8;
+            border-top: 1px solid #e8e8e8;
+            transform: rotate(45deg);
+        }
+
+        .annotation-title {
+            font-size: 12px;
+            color: #667eea;
+            font-weight: 600;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .annotation-item {
+            padding: 8px 10px;
+            border-radius: 8px;
+            font-size: 13px;
+            color: #333;
+            cursor: pointer;
+            transition: all 0.15s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .annotation-item:hover {
+            background: #f5f5ff;
+            color: #667eea;
+        }
+
+        .annotation-item::before {
+            content: '→';
+            color: #ccc;
+            font-size: 11px;
+        }
+
+        .annotation-item:hover::before {
+            color: #667eea;
+        }
+
+        /* 手动选中分叉按钮 */
+        .fork-tooltip {
+            position: fixed;
+            background: #1a1a1a;
+            color: white;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 13px;
+            cursor: pointer;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+            z-index: 9999;
+            animation: tooltipIn 0.15s ease;
+            white-space: nowrap;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            user-select: none;
+            pointer-events: auto;
+        }
+
+        .fork-tooltip::before {
+            content: '🔍';
+        }
+
+        @keyframes tooltipIn {
+            from { transform: scale(0.9); opacity: 0; }
+            to { transform: scale(1); opacity: 1; }
+        }
+
+        /* 输入区 */
+        .input-area {
+            border-top: 1px solid #e8e8e8;
+            padding: 16px 20%;
+            background: #fff;
+            flex-shrink: 0;
+        }
+
+        .input-wrapper {
+            display: flex;
+            gap: 12px;
+            align-items: flex-end;
+            background: #f5f5f5;
+            border-radius: 20px;
+            padding: 8px 8px 8px 16px;
+            border: 1px solid transparent;
+            transition: border-color 0.2s;
+        }
+
+        .input-wrapper:focus-within {
+            border-color: #667eea;
+            background: #fff;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .input-field {
+            flex: 1;
+            border: none;
+            background: transparent;
+            outline: none;
+            font-size: 15px;
+            line-height: 1.5;
+            resize: none;
+            max-height: 120px;
+            padding: 6px 0;
+            font-family: inherit;
+        }
+
+        .input-field::placeholder {
+            color: #999;
+        }
+
+        .send-btn {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: #667eea;
+            color: white;
+            border: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+            flex-shrink: 0;
+        }
+
+        .send-btn:hover {
+            background: #5a6fd6;
+            transform: scale(1.05);
+        }
+
+        .send-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        /* 右侧树状导航 */
+        .sidebar {
+            width: 300px;
+            background: #fff;
+            border-left: 1px solid #e8e8e8;
+            display: flex;
+            flex-direction: column;
+            flex-shrink: 0;
+        }
+
+        .sidebar-header {
+            padding: 16px 20px;
+            border-bottom: 1px solid #e8e8e8;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .sidebar-title {
+            font-size: 13px;
+            font-weight: 600;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .merge-btn {
+            font-size: 12px;
+            color: #667eea;
+            cursor: pointer;
+            padding: 4px 8px;
+            border-radius: 6px;
+            transition: all 0.2s;
+        }
+
+        .merge-btn:hover {
+            background: #f0f0ff;
+        }
+
+        .tree-container {
+            flex: 1;
+            overflow-y: auto;
+            padding: 12px;
+        }
+
+        .tree-node {
+            padding: 8px 12px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 13px;
+            color: #333;
+            transition: all 0.15s;
+            margin: 2px 0;
+            position: relative;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .tree-node:hover {
+            background: #f5f5f5;
+        }
+
+        .tree-node.active {
+            background: #f0f0ff;
+            color: #667eea;
+            font-weight: 500;
+        }
+
+        .tree-node.root {
+            font-weight: 500;
+        }
+
+        .tree-node.fork {
+            padding-left: 28px;
+        }
+
+        .tree-node.fork::before {
+            content: '↳';
+            position: absolute;
+            left: 10px;
+            color: #999;
+            font-size: 12px;
+        }
+
+        .tree-node .node-status {
+            font-size: 11px;
+            margin-left: auto;
+        }
+
+        .status-exploring {
+            color: #667eea;
+        }
+
+        .status-done {
+            color: #4caf50;
+        }
+
+        .tree-children {
+            margin-left: 16px;
+            border-left: 2px solid #f0f0f0;
+            padding-left: 8px;
+        }
+
+        .node-meta {
+            font-size: 11px;
+            color: #999;
+            margin-top: 2px;
+        }
+
+        /* ===== 合并弹窗 - 关键修复 ===== */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.4);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            animation: fadeIn 0.2s ease;
+        }
+
+        .modal {
+            background: white;
+            border-radius: 16px;
+            width: 520px;
+            max-height: 85vh;
+            overflow: hidden;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.15);
+            animation: slideUp 0.3s ease;
+        }
+
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .modal-header {
+            padding: 20px 24px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .modal-header h3 {
+            font-size: 16px;
+            font-weight: 600;
+            color: #1a1a1a;
+        }
+
+        .modal-header p {
+            font-size: 13px;
+            color: #999;
+            margin-top: 4px;
+        }
+
+        .modal-body {
+            padding: 20px 24px;
+            overflow-y: auto;
+            max-height: 55vh;
+        }
+
+        .modal-section {
+            margin-bottom: 24px;
+        }
+
+        .modal-section-title {
+            font-size: 13px;
+            font-weight: 600;
+            color: #666;
+            margin-bottom: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        /* 目标选择 - 单选 */
+        .target-option {
+            padding: 12px 14px;
+            border-radius: 10px;
+            border: 2px solid #f0f0f0;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .target-option:hover {
+            border-color: #667eea;
+            background: #f5f5ff;
+        }
+
+        .target-option.selected {
+            border-color: #667eea;
+            background: #f0f0ff;
+        }
+
+        .target-option input[type="radio"] {
+            width: 18px;
+            height: 18px;
+            accent-color: #667eea;
+            cursor: pointer;
+            flex-shrink: 0;
+        }
+
+        .target-option label {
+            cursor: pointer;
+            flex: 1;
+            font-size: 14px;
+            pointer-events: none;
+        }
+
+        /* ===== 关键修复：参与分支选择 ===== */
+        .source-list {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .source-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 12px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: 2px solid transparent;
+            background: #fafafa;
+        }
+
+        .source-item:hover {
+            border-color: #e0e0e0;
+            background: #f5f5f5;
+        }
+
+        .source-item.checked {
+            border-color: #667eea;
+            background: #f0f0ff;
+        }
+
+        .source-item input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            accent-color: #667eea;
+            cursor: pointer;
+            flex-shrink: 0;
+            pointer-events: none;
+        }
+
+        .source-item .source-info {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            pointer-events: none;
+        }
+
+        .source-item .source-name {
+            font-size: 14px;
+            color: #333;
+            font-weight: 500;
+        }
+
+        .source-item .source-path {
+            font-size: 12px;
+            color: #999;
+        }
+
+        .modal-footer {
+            padding: 16px 24px;
+            border-top: 1px solid #f0f0f0;
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+        }
+
+        .keep-option {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+            color: #666;
+            margin-right: auto;
+        }
+
+        .keep-option select {
+            padding: 6px 10px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 13px;
+            outline: none;
+            cursor: pointer;
+        }
+
+        /* 滚动条美化 */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #ddd;
+            border-radius: 3px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #bbb;
+        }
+    </style>
+</head>
+<body>
+    <div class="app" id="app"></div>
+
+    <script>
+        // ============ 数据存储 ============
+        let conversations = {
+            root: {
+                id: 'root',
+                parentId: null,
+                name: '主对话',
+                messages: [],
+                forkFrom: null,
+                forkText: null,
+                status: 'active',
+                autoExploring: false
+            }
+        };
+        let currentConvId = 'root';
+        let messageIdCounter = 0;
+        let convIdCounter = 0;
+        let annotationEnabled = true;
+        let activeAnnotation = null;
+        let forkTooltip = null;
+        let showSuggestionBar = false;
+        let autoExploringBranches = [];
+
+        // 模拟 LLM 回答
+        const mockResponses = [
+            {
+                text: `转行程序员是一个可行的选择，关键要理清几个方向：\n\n首先是学习路径，零基础建议从 Python 或 JavaScript 入门，逐步深入数据结构与算法。\n\n其次是语言选择，Python 适合快速上手，JavaScript 全栈机会多，Java 企业需求稳定。\n\n第三是时间规划，全职学习 3-6 个月可达初级水平，兼职需要 6-12 个月。\n\n最后是就业准备，需要 2-3 个完整项目、刷题准备、简历优化。`,
+                annotations: [
+                    { text: '学习路径', suggestions: ['完整学习路线图', '各阶段技能要求', '学习资源推荐'] },
+                    { text: '语言选择', suggestions: ['Python vs JavaScript 对比', '企业需求分析', '薪资水平对比'] },
+                    { text: '时间规划', suggestions: ['全职学习方案', '兼职学习方案', '时间分配建议'] },
+                    { text: '就业准备', suggestions: ['项目作品集搭建', '面试刷题策略', '简历优化技巧'] }
+                ],
+                suggestFork: true,
+                forkReason: '4 个独立维度，建议并行探索'
+            }
+        ];
+
+        // ============ 初始化 ============
+        function init() {
+            const app = document.getElementById('app');
+            app.innerHTML = `
+                <div class="chat-area" id="chatArea">
+                    <div class="header">
+                        <div class="header-left">
+                            <div class="logo">
+                                <div class="logo-icon">G</div>
+                                Graph Chat
+                            </div>
+                            <div class="breadcrumb" id="breadcrumb">
+                                <span>主对话</span>
+                            </div>
+                        </div>
+                        <div class="header-right">
+                            <button class="toggle-btn active" id="toggleAnnotation" onclick="toggleAnnotation()">
+                                <span class="toggle-dot"></span>
+                                智能标注
+                            </button>
+                        </div>
+                    </div>
+                    <div id="suggestionArea"></div>
+                    <div id="progressArea"></div>
+                    <div class="messages" id="messages"></div>
+                    <div class="input-area">
+                        <div class="input-wrapper">
+                            <textarea class="input-field" id="userInput" placeholder="输入消息，或选中 AI 回答中的文字进行分叉..." rows="1" oninput="autoResize(this)" onkeypress="handleKeyPress(event)"></textarea>
+                            <button class="send-btn" id="sendBtn" onclick="sendMessage()">➤</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="sidebar">
+                    <div class="sidebar-header">
+                        <div class="sidebar-title">对话树</div>
+                        <div class="merge-btn" id="mergeBtn" onclick="showMergeModal()" style="display: none;">📋 综合结论</div>
+                    </div>
+                    <div class="tree-container" id="tree"></div>
+                </div>
+            `;
+
+            addMessage('assistant', {
+                text: '你好！我是 Graph Chat，你的协同研究 Agent。\n\n我可以：\n1. 自动标注回答中的可深入点\n2. 检测多维度话题时，建议创建分支并行探索\n3. 自主在各分支深入调研，你随时可介入\n4. 灵活综合各分支结论到任意祖先节点\n\n试试问我一个问题吧！',
+                annotations: []
+            }, 'root');
+
+            renderTree();
+
+            document.addEventListener('selectionchange', handleSelectionChange);
+            document.addEventListener('click', handleDocumentClick);
+        }
+
+        // ============ 智能标注开关 ============
+        function toggleAnnotation() {
+            annotationEnabled = !annotationEnabled;
+            const btn = document.getElementById('toggleAnnotation');
+            const chatArea = document.getElementById('chatArea');
+
+            btn.classList.toggle('active');
+
+            if (activeAnnotation) {
+                activeAnnotation.remove();
+                activeAnnotation = null;
+            }
+            document.querySelectorAll('.annotatable.active').forEach(el => el.classList.remove('active'));
+
+            if (annotationEnabled) {
+                chatArea.classList.remove('annotations-hidden');
+            } else {
+                chatArea.classList.add('annotations-hidden');
+            }
+        }
+
+        // ============ 消息管理 ============
+        function addMessage(role, content, convId) {
+            const msg = {
+                id: `msg_${messageIdCounter++}`,
+                role,
+                content,
+                timestamp: Date.now()
+            };
+            conversations[convId].messages.push(msg);
+            if (convId === currentConvId) {
+                renderMessages();
+            }
+            return msg;
+        }
+
+        // ============ 渲染消息 ============
+        function renderMessages() {
+            const container = document.getElementById('messages');
+            const conv = conversations[currentConvId];
+
+            container.innerHTML = conv.messages.map(msg => {
+                if (msg.role === 'user') {
+                    return `
+                        <div class="message message-user">
+                            <div class="avatar avatar-user">我</div>
+                            <div class="bubble bubble-user">${escapeHtml(msg.content)}</div>
+                        </div>
+                    `;
+                } else if (msg.role === 'system') {
+                    return renderSystemMessage(msg);
+                } else {
+                    return renderAssistantMessage(msg);
+                }
+            }).join('');
+
+            container.scrollTop = container.scrollHeight;
+            updateBreadcrumb();
+        }
+
+        function renderAssistantMessage(msg) {
+            const content = msg.content;
+            let html = content.text;
+
+            if (content.annotations) {
+                content.annotations.forEach((ann, idx) => {
+                    const replacement = `<span class="annotatable" data-ann="${msg.id}-${idx}" onclick="showAnnotation(event, '${msg.id}', ${idx})">${ann.text}</span>`;
+                    const regex = new RegExp(ann.text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g');
+                    html = html.replace(regex, replacement);
+                });
+            }
+
+            html = html.replace(/\n/g, '<br>');
+
+            return `
+                <div class="message">
+                    <div class="avatar avatar-ai">AI</div>
+                    <div class="bubble bubble-ai">
+                        <div class="content">${html}</div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderSystemMessage(msg) {
+            const content = msg.content;
+            return `
+                <div class="message">
+                    <div class="avatar avatar-system">📋</div>
+                    <div class="bubble bubble-system">
+                        <div class="merge-header">📋 综合结论</div>
+                        <div>${content.conclusion.replace(/\n/g, '<br>')}</div>
+                        <div class="merge-source">来源：${content.sources.join('、')}</div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // ============ 标注浮层 ============
+        function showAnnotation(event, msgId, annIdx) {
+            if (!annotationEnabled) return;
+
+            event.stopPropagation();
+            event.preventDefault();
+
+            if (activeAnnotation) {
+                activeAnnotation.remove();
+                activeAnnotation = null;
+            }
+
+            document.querySelectorAll('.annotatable.active').forEach(el => el.classList.remove('active'));
+
+            const target = event.target;
+            target.classList.add('active');
+
+            const msg = conversations[currentConvId].messages.find(m => m.id === msgId);
+            if (!msg || !msg.content.annotations) return;
+
+            const ann = msg.content.annotations[annIdx];
+
+            const popup = document.createElement('div');
+            popup.className = 'annotation-popup';
+            popup.innerHTML = `
+                <div class="annotation-title">💡 推荐深入</div>
+                ${ann.suggestions.map(s => `<div class="annotation-item" onclick="event.stopPropagation(); createForkFromAnnotation('${ann.text}', '${s}')">${s}</div>`).join('')}
+            `;
+
+            target.appendChild(popup);
+            activeAnnotation = popup;
+        }
+
+        function createForkFromAnnotation(sourceText, suggestion) {
+            createFork(sourceText, suggestion);
+            if (activeAnnotation) {
+                activeAnnotation.remove();
+                activeAnnotation = null;
+            }
+            document.querySelectorAll('.annotatable.active').forEach(el => el.classList.remove('active'));
+        }
+
+        // ============ 手动选中分叉 ============
+        function handleSelectionChange() {
+            if (forkTooltip) {
+                forkTooltip.remove();
+                forkTooltip = null;
+            }
+
+            const selection = window.getSelection();
+            const selectedText = selection.toString().trim();
+
+            if (selectedText.length === 0 || selectedText.length > 100) return;
+
+            const range = selection.getRangeAt(0);
+            let node = range.commonAncestorContainer;
+            if (node.nodeType === 3) node = node.parentElement;
+
+            const bubble = node.closest('.bubble-ai .content');
+            if (!bubble) return;
+
+            const rects = range.getClientRects();
+            if (rects.length === 0) return;
+
+            const lastRect = rects[rects.length - 1];
+
+            const tooltip = document.createElement('div');
+            tooltip.className = 'fork-tooltip';
+            tooltip.textContent = '深入讨论';
+
+            const top = lastRect.top - 40;
+            const left = lastRect.left + (lastRect.width / 2) - 50;
+
+            tooltip.style.top = `${Math.max(10, top)}px`;
+            tooltip.style.left = `${left}px`;
+
+            tooltip.onclick = function(e) {
+                e.stopPropagation();
+                e.preventDefault();
+                createFork(selectedText);
+                selection.removeAllRanges();
+                tooltip.remove();
+                forkTooltip = null;
+            };
+
+            document.body.appendChild(tooltip);
+            forkTooltip = tooltip;
+        }
+
+        // ============ 创建分叉 ============
+        function createFork(selectedText, suggestion) {
+            convIdCounter++;
+            const newConvId = `conv_${convIdCounter}`;
+            const forkName = suggestion || selectedText.substring(0, 20);
+
+            conversations[newConvId] = {
+                id: newConvId,
+                parentId: currentConvId,
+                name: forkName,
+                messages: [],
+                forkFrom: currentConvId,
+                forkText: selectedText,
+                status: 'active',
+                autoExploring: false
+            };
+
+            const context = suggestion 
+                ? `基于"${selectedText}"，深入探讨：${suggestion}`
+                : `基于你选中的内容："${selectedText}"`;
+
+            addMessage('assistant', {
+                text: `【子对话】${context}\n\n我们可以围绕这个点深入讨论。你想了解什么？`,
+                annotations: []
+            }, newConvId);
+
+            currentConvId = newConvId;
+            renderMessages();
+            renderTree();
+        }
+
+        // ============ 发送消息 ============
+        function sendMessage() {
+            const input = document.getElementById('userInput');
+            const text = input.value.trim();
+            if (!text) return;
+
+            input.value = '';
+            input.style.height = 'auto';
+            addMessage('user', text, currentConvId);
+
+            setTimeout(() => {
+                const response = mockResponses[0];
+                addMessage('assistant', response, currentConvId);
+
+                if (response.suggestFork) {
+                    showSuggestion(response);
+                }
+            }, 800);
+        }
+
+        // ============ Agent 建议条 ============
+        function showSuggestion(response) {
+            showSuggestionBar = true;
+            const area = document.getElementById('suggestionArea');
+            area.innerHTML = `
+                <div class="suggestion-bar">
+                    <div class="suggestion-main">
+                        <div class="suggestion-icon">💡</div>
+                        <div class="suggestion-text">
+                            <strong>Agent 建议：</strong>${response.forkReason}，建议创建分支并行探索，效率更高
+                        </div>
+                    </div>
+                    <div class="suggestion-controls">
+                        <div class="suggestion-settings">
+                            <div class="setting-item">
+                                <span>并行数：</span>
+                                <select id="forkCount">
+                                    <option value="2">2</option>
+                                    <option value="3" selected>3</option>
+                                    <option value="4">4</option>
+                                    <option value="5">5</option>
+                                </select>
+                            </div>
+                            <div class="setting-item">
+                                <span>深度：</span>
+                                <select id="forkDepth">
+                                    <option value="2">2 轮</option>
+                                    <option value="3" selected>3 轮</option>
+                                    <option value="4">4 轮</option>
+                                    <option value="5">5 轮</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="suggestion-actions">
+                            <button class="btn btn-secondary" onclick="ignoreSuggestion()">忽略</button>
+                            <button class="btn btn-primary" onclick="autoCreateBranches()">创建并自主探索</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function ignoreSuggestion() {
+            showSuggestionBar = false;
+            document.getElementById('suggestionArea').innerHTML = '';
+        }
+
+        // ============ 自动创建分支并探索 ============
+        function autoCreateBranches() {
+            const count = parseInt(document.getElementById('forkCount').value);
+            const annotations = mockResponses[0].annotations.slice(0, count);
+
+            autoExploringBranches = [];
+
+            annotations.forEach((ann, idx) => {
+                convIdCounter++;
+                const newConvId = `conv_${convIdCounter}`;
+
+                conversations[newConvId] = {
+                    id: newConvId,
+                    parentId: currentConvId,
+                    name: ann.text,
+                    messages: [],
+                    forkFrom: currentConvId,
+                    forkText: ann.text,
+                    status: 'exploring',
+                    autoExploring: true
+                };
+
+                autoExploringBranches.push(newConvId);
+
+                addMessage('assistant', {
+                    text: `【${ann.text}】深入探索\n\n我们可以从以下几个角度了解${ann.text}：\n\n1. 核心概念与原理\n2. 实际应用场景\n3. 与其他方案的对比\n4. 入门资源推荐\n\n你想从哪个角度开始？`,
+                    annotations: []
+                }, newConvId);
+            });
+
+            ignoreSuggestion();
+            showProgressIndicator();
+            renderTree();
+
+            setTimeout(() => {
+                autoExploringBranches.forEach(id => {
+                    conversations[id].status = 'done';
+                    conversations[id].autoExploring = false;
+                });
+                renderTree();
+                updateProgressIndicator();
+            }, 3000);
+        }
+
+        // ============ 进度指示器 ============
+        function showProgressIndicator() {
+            const area = document.getElementById('progressArea');
+            area.innerHTML = `
+                <div class="progress-indicator">
+                    <div class="progress-dots">
+                        <div class="progress-dot"></div>
+                        <div class="progress-dot"></div>
+                        <div class="progress-dot"></div>
+                        <div class="progress-dot"></div>
+                    </div>
+                    <span>Agent 正在 ${autoExploringBranches.length} 个分支并行探索...</span>
+                </div>
+            `;
+        }
+
+        function updateProgressIndicator() {
+            const area = document.getElementById('progressArea');
+            const allDone = autoExploringBranches.every(id => conversations[id].status === 'done');
+
+            if (allDone) {
+                area.innerHTML = `
+                    <div class="progress-indicator">
+                        <div class="progress-dots">
+                            <div class="progress-dot done"></div>
+                            <div class="progress-dot done"></div>
+                            <div class="progress-dot done"></div>
+                            <div class="progress-dot done"></div>
+                        </div>
+                        <span style="color: #4caf50;">✓ 所有分支探索完成，可综合结论</span>
+                    </div>
+                `;
+            }
+        }
+
+        // ============ 树状导航 ============
+        function renderTree() {
+            const container = document.getElementById('tree');
+            container.innerHTML = renderTreeNode('root', 0);
+            updateMergeButton();
+        }
+
+        // 更新综合结论按钮显示状态
+        function updateMergeButton() {
+            const mergeBtn = document.getElementById('mergeBtn');
+            if (!mergeBtn) return;
+
+            // 主对话不显示
+            if (currentConvId === 'root') {
+                mergeBtn.style.display = 'none';
+                return;
+            }
+
+            // 检查当前分支是否有后代分支
+            const hasDescendants = Object.values(conversations).some(c => c.parentId === currentConvId);
+
+            if (hasDescendants) {
+                mergeBtn.style.display = 'block';
+            } else {
+                mergeBtn.style.display = 'none';
+            }
+        }
+
+        function renderTreeNode(convId, depth) {
+            const conv = conversations[convId];
+            const isActive = convId === currentConvId;
+            const isFork = conv.forkFrom !== null;
+
+            let statusIcon = '';
+            if (conv.status === 'exploring') statusIcon = '<span class="node-status status-exploring">🔄</span>';
+            else if (conv.status === 'done') statusIcon = '<span class="node-status status-done">✓</span>';
+
+            let html = `
+                <div class="tree-node ${isActive ? 'active' : ''} ${isFork ? 'fork' : 'root'}" 
+                     onclick="switchConversation('${convId}')" 
+                     style="padding-left: ${12 + depth * 16}px">
+                    ${conv.name}
+                    ${statusIcon}
+                </div>
+            `;
+
+            const children = Object.values(conversations).filter(c => c.parentId === convId);
+            if (children.length > 0) {
+                html += '<div class="tree-children">';
+                children.forEach(child => {
+                    html += renderTreeNode(child.id, depth + 1);
+                });
+                html += '</div>';
+            }
+
+            return html;
+        }
+
+        function switchConversation(convId) {
+            currentConvId = convId;
+            renderMessages();
+            renderTree();
+        }
+
+        // ============ 面包屑 ============
+        function updateBreadcrumb() {
+            const conv = conversations[currentConvId];
+            let path = [conv.name];
+            let parent = conv.parentId;
+            while (parent) {
+                path.unshift(conversations[parent].name);
+                parent = conversations[parent].parentId;
+            }
+
+            const breadcrumb = document.getElementById('breadcrumb');
+            breadcrumb.innerHTML = path.map((name, i) => {
+                if (i === path.length - 1) return `<span>${name}</span>`;
+                return `<span>${name}</span><span class="breadcrumb-sep">/</span>`;
+            }).join('');
+        }
+
+        // ============ 合并弹窗（关键修复） ============
+        function showMergeModal() {
+            const modal = document.createElement('div');
+            modal.className = 'modal-overlay';
+            modal.id = 'mergeModal';
+
+            const ancestors = getAncestors(currentConvId);
+            const descendants = getDescendants(currentConvId);
+
+            // 生成唯一ID前缀避免冲突
+            const prefix = 'merge_' + Date.now() + '_';
+
+            modal.innerHTML = `
+                <div class="modal">
+                    <div class="modal-header">
+                        <h3>📋 综合结论</h3>
+                        <p>选择合并目标和参与分支</p>
+                    </div>
+                    <div class="modal-body">
+                        <div class="modal-section">
+                            <div class="modal-section-title">合并到</div>
+                            ${ancestors.map((a, i) => `
+                                <div class="target-option" id="${prefix}target_${i}" onclick="selectTarget('${prefix}target_${i}', '${a.id}')">
+                                    <input type="radio" name="merge_target" value="${a.id}" id="${prefix}radio_${i}">
+                                    <label for="${prefix}radio_${i}">${a.name}</label>
+                                </div>
+                            `).join('')}
+                        </div>
+                        <div class="modal-section">
+                            <div class="modal-section-title">参与分支（可多选）</div>
+                            <div class="source-list">
+                                ${descendants.map((d, i) => `
+                                    <div class="source-item" id="${prefix}source_${i}" onclick="toggleSource('${prefix}source_${i}', '${d.id}')">
+                                        <input type="checkbox" value="${d.id}" id="${prefix}chk_${i}">
+                                        <div class="source-info">
+                                            <span class="source-name">${d.name}</span>
+                                            <span class="source-path">${getPath(d.id)}</span>
+                                        </div>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <div class="keep-option">
+                            <span>源分支：</span>
+                            <select id="keepOption">
+                                <option value="keep">保留</option>
+                                <option value="archive">归档</option>
+                                <option value="delete">删除</option>
+                            </select>
+                        </div>
+                        <button class="btn btn-secondary" onclick="closeMergeModal()">取消</button>
+                        <button class="btn btn-primary" onclick="executeMerge('${prefix}')">确认合并</button>
+                    </div>
+                </div>
+            `;
+
+            document.body.appendChild(modal);
+        }
+
+        function getAncestors(convId) {
+            const result = [];
+            let current = conversations[convId];
+            while (current.parentId) {
+                current = conversations[current.parentId];
+                result.unshift({ id: current.id, name: current.name });
+            }
+            return result;
+        }
+
+        function getDescendants(convId) {
+            const result = [];
+            const children = Object.values(conversations).filter(c => c.parentId === convId);
+            children.forEach(child => {
+                result.push(child);
+                result.push(...getDescendants(child.id));
+            });
+            return result;
+        }
+
+        function getPath(convId) {
+            const conv = conversations[convId];
+            if (!conv.parentId) return '';
+            const parent = conversations[conv.parentId];
+            return parent.name + ' /';
+        }
+
+        function selectTarget(elId, targetId) {
+            // 移除所有选中状态
+            document.querySelectorAll('.target-option').forEach(o => o.classList.remove('selected'));
+            // 选中当前
+            const el = document.getElementById(elId);
+            if (el) {
+                el.classList.add('selected');
+                const radio = el.querySelector('input[type="radio"]');
+                if (radio) radio.checked = true;
+            }
+        }
+
+        function toggleSource(elId, sourceId) {
+            const el = document.getElementById(elId);
+            if (!el) return;
+
+            const checkbox = el.querySelector('input[type="checkbox"]');
+            if (!checkbox) return;
+
+            // 切换状态
+            checkbox.checked = !checkbox.checked;
+
+            // 更新视觉
+            if (checkbox.checked) {
+                el.classList.add('checked');
+            } else {
+                el.classList.remove('checked');
+            }
+        }
+
+        function closeMergeModal() {
+            const modal = document.getElementById('mergeModal');
+            if (modal) modal.remove();
+        }
+
+        function executeMerge(prefix) {
+            // 获取选中的目标
+            const targetRadio = document.querySelector(`input[name="merge_target"]:checked`);
+            if (!targetRadio) {
+                alert('请选择合并目标');
+                return;
+            }
+
+            const targetId = targetRadio.value;
+
+            // 获取选中的源（通过 checkbox 的 checked 状态）
+            const sourceIds = [];
+            document.querySelectorAll('.source-item').forEach(item => {
+                const checkbox = item.querySelector('input[type="checkbox"]');
+                if (checkbox && checkbox.checked) {
+                    sourceIds.push(checkbox.value);
+                }
+            });
+
+            if (sourceIds.length === 0) {
+                alert('请选择至少一个参与分支');
+                return;
+            }
+
+            const keepOption = document.getElementById('keepOption').value;
+
+            const sourceNames = sourceIds.map(id => conversations[id].name);
+
+            addMessage('system', {
+                conclusion: `基于 ${sourceNames.join('、')} 的探索，综合结论如下：\n\n1. 各方向核心要点已梳理\n2. 优劣势对比清晰\n3. 建议根据实际需求选择\n\n详细内容可查看各分支对话记录。`,
+                sources: sourceNames
+            }, targetId);
+
+            sourceIds.forEach(id => {
+                if (keepOption === 'delete') {
+                    delete conversations[id];
+                } else if (keepOption === 'archive') {
+                    conversations[id].status = 'archived';
+                }
+            });
+
+            closeMergeModal();
+
+            if (currentConvId === targetId) {
+                renderMessages();
+            }
+            renderTree();
+        }
+
+        // ============ 全局事件 ============
+        function handleDocumentClick(e) {
+            // 关闭标注浮层
+            if (!e.target.closest('.annotatable') && activeAnnotation) {
+                activeAnnotation.remove();
+                activeAnnotation = null;
+                document.querySelectorAll('.annotatable.active').forEach(el => el.classList.remove('active'));
+            }
+
+            // 关闭选中 tooltip
+            if (!e.target.closest('.fork-tooltip')) {
+                const selection = window.getSelection();
+                if (selection.toString().trim() === '' && forkTooltip) {
+                    forkTooltip.remove();
+                    forkTooltip = null;
+                }
+            }
+        }
+
+        function autoResize(textarea) {
+            textarea.style.height = 'auto';
+            textarea.style.height = Math.min(textarea.scrollHeight, 120) + 'px';
+        }
+
+        function handleKeyPress(event) {
+            if (event.key === 'Enter' && !event.shiftKey) {
+                event.preventDefault();
+                sendMessage();
+            }
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // 启动
+        init();
+    </script>
+</body>
+</html>
