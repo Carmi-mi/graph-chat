@@ -37,17 +37,8 @@ async def list_conversations(
     return ConversationListResponse(items=items, total=len(items))
 
 
-@router.get("/{conversation_id}")
-async def get_conversation(
-    conversation_id: UUID,
-    service: ConversationService = Depends(get_conversation_service),
-) -> dict:
-    """Get a single conversation by ID with full tree structure."""
-    conv = await service.get_with_tree(conversation_id)
-    # Force load relationships
-    _ = conv.messages
-    _ = conv.children
-    # Manual serialization to ensure nested fields
+def _serialize_conversation(conv) -> dict:
+    """Recursively serialize a conversation with its full tree."""
     return {
         "id": str(conv.id),
         "name": conv.name,
@@ -81,45 +72,18 @@ async def get_conversation(
             }
             for msg in conv.messages
         ],
-        "children": [
-            {
-                "id": str(child.id),
-                "name": child.name,
-                "parentId": str(child.parent_id) if child.parent_id else None,
-                "status": child.status,
-                "forkFrom": str(child.fork_from) if child.fork_from else None,
-                "forkText": child.fork_text,
-                "autoExploring": child.auto_exploring,
-                "createdAt": child.created_at.isoformat(),
-                "updatedAt": child.updated_at.isoformat(),
-                "messages": [
-                    {
-                        "id": str(msg.id),
-                        "conversationId": str(msg.conversation_id),
-                        "role": msg.role,
-                        "content": msg.content,
-                        "nodeType": msg.node_type,
-                        "annotations": [
-                            {
-                                "id": str(a.id),
-                                "messageId": str(a.message_id),
-                                "text": a.text,
-                                "startOffset": a.start_offset,
-                                "endOffset": a.end_offset,
-                                "suggestions": a.suggestions or [],
-                                "createdAt": a.created_at.isoformat(),
-                            }
-                            for a in msg.annotations
-                        ],
-                        "createdAt": msg.created_at.isoformat(),
-                    }
-                    for msg in child.messages
-                ],
-                "children": [],
-            }
-            for child in conv.children
-        ],
+        "children": [_serialize_conversation(child) for child in conv.children],
     }
+
+
+@router.get("/{conversation_id}")
+async def get_conversation(
+    conversation_id: UUID,
+    service: ConversationService = Depends(get_conversation_service),
+) -> dict:
+    """Get a single conversation by ID with full tree structure."""
+    conv = await service.get_with_tree(conversation_id)
+    return _serialize_conversation(conv)
 
 
 @router.put("/{conversation_id}", response_model=ConversationResponse)

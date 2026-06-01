@@ -6,6 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from app.models.conversation import Conversation
+from app.models.message import Message
 from app.repositories.base import BaseRepository
 
 
@@ -24,9 +25,17 @@ class ConversationRepository(BaseRepository[Conversation]):
             select(Conversation)
             .where(Conversation.id == id)
             .options(
-                selectinload(Conversation.messages),
-                selectinload(Conversation.children).selectinload(Conversation.messages),
-                selectinload(Conversation.children).selectinload(Conversation.children),
+                selectinload(Conversation.messages).selectinload(Message.annotations),
+                selectinload(Conversation.children)
+                .selectinload(Conversation.messages)
+                .selectinload(Message.annotations),
+                selectinload(Conversation.children)
+                .selectinload(Conversation.children)
+                .selectinload(Conversation.messages)
+                .selectinload(Message.annotations),
+                selectinload(Conversation.children)
+                .selectinload(Conversation.children)
+                .selectinload(Conversation.children),
             )
         )
         result = await self.session.execute(stmt)
