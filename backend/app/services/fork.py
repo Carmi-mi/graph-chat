@@ -4,6 +4,7 @@ import uuid
 
 from app.core.exceptions import (
     ConversationNotFound,
+    ForkDepthExceeded,
     ForkFromNonAssistant,
     ForkTextTooLong,
     ForkTextTooShort,
@@ -17,6 +18,7 @@ from app.repositories.message import MessageRepository
 # Validation constants
 MIN_FORK_TEXT_LENGTH = 1
 MAX_FORK_TEXT_LENGTH = 2000
+MAX_FORK_DEPTH = 4
 
 
 class ForkService:
@@ -72,6 +74,13 @@ class ForkService:
                 message=f"Conversation {source_msg.conversation_id} not found"
             )
 
+        # Check depth limit
+        depth = await self._get_conversation_depth(parent_conv)
+        if depth >= MAX_FORK_DEPTH:
+            raise ForkDepthExceeded(
+                message=f"分支层级已达上限（最多{MAX_FORK_DEPTH}层），无法继续创建子分支"
+            )
+
         # Create the child conversation
         fork_name = f"Fork: {selected_text[:50]}"
         child = await self.conversation_repo.create(
@@ -101,3 +110,18 @@ class ForkService:
         self.conversation_repo.session.add(relation)
 
         return child
+
+    async def _get_conversation_depth(self, conv: Conversation) -> int:
+        """Calculate the depth of a conversation by traversing up to root.
+
+        Root conversation has depth 0, its children have depth 1, etc.
+        """
+        depth = 0
+        current = conv
+        while current.parent_id is not None:
+            depth += 1
+            parent = await self.conversation_repo.get(current.parent_id)
+            if parent is None:
+                break
+            current = parent
+        return depth

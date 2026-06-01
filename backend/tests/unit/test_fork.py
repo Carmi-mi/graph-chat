@@ -24,10 +24,11 @@ def _make_message(id=None, role="assistant", content="Some answer", conversation
     return msg
 
 
-def _make_conversation(id=None, name="Test Conv"):
+def _make_conversation(id=None, name="Test Conv", parent_id=None):
     conv = MagicMock()
     conv.id = id or uuid.uuid4()
     conv.name = name
+    conv.parent_id = parent_id
     return conv
 
 

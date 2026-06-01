@@ -51,6 +51,10 @@ class ForkFromNonAssistant(ValidationError):
     code = "FORK_FROM_NON_ASSISTANT"
 
 
+class ForkDepthExceeded(ValidationError):
+    code = "FORK_DEPTH_EXCEEDED"
+
+
 class MessageEmptyContent(ValidationError):
     code = "MESSAGE_EMPTY_CONTENT"
 
