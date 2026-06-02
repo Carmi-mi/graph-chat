@@ -11,7 +11,7 @@ class Settings(BaseSettings):
     OPENAI_MODEL: str = "deepseek-v4-flash"
     OPENAI_BASE_URL: str = "https://api.deepseek.com"
     LLM_PROVIDER: str = "openai"
-    CORS_ORIGINS: str = "http://localhost:3000,http://localhost:5173,http://localhost:5174,http://localhost:5175"
+    CORS_ORIGINS: str = "http://localhost:5173"
     APP_ENV: str = "development"
     LOG_LEVEL: str = "INFO"
 

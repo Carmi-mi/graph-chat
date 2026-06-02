@@ -57,9 +57,9 @@ stop_frontend() {
         fi
         rm -f "$FRONTEND_PID_FILE"
     fi
-    # 清理可能残留的 node 进程（通过端口 5731）
+    # 清理可能残留的 node 进程（通过端口 5173）
     if command -v npx &> /dev/null; then
-        npx kill-port 5731 2>/dev/null || true
+        npx kill-port 5173 2>/dev/null || true
     fi
 }
 
@@ -115,7 +115,7 @@ start_frontend() {
     cd "$SCRIPT_DIR"
 
     echo -e "${GREEN}前端服务已启动 (PID: $(cat "$FRONTEND_PID_FILE"))${NC}"
-    echo -e "${GREEN}访问地址：http://localhost:5731${NC}"
+    echo -e "${GREEN}访问地址：http://localhost:5173${NC}"
     echo -e "${GREEN}日志文件：$FRONTEND_LOG${NC}"
 }
 
@@ -164,7 +164,7 @@ start_all() {
     start_backend
     echo ""
     echo -e "${GREEN}所有服务已启动！${NC}"
-    echo -e "${GREEN}前端：http://localhost:5731${NC}"
+    echo -e "${GREEN}前端：http://localhost:5173${NC}"
     echo -e "${GREEN}后端：http://localhost:8000${NC}"
     echo -e "${GREEN}API 文档：http://localhost:8000/docs${NC}"
     echo ""
