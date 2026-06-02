@@ -29,3 +29,6 @@ Thumbs.db
 
 # Claude Code local memory
 .claude/
+
+# Logs
+*.log
