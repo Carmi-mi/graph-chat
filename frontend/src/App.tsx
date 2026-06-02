@@ -5,6 +5,7 @@ import ChatWindow from './components/ChatWindow';
 import TreeSidebar from './components/TreeSidebar';
 import MergeModal from './components/MergeModal';
 import ConfirmDialog from './components/ConfirmDialog';
+import ErrorToast from './components/ErrorToast';
 import { useConversationStore, useUIStore } from './store';
 import * as conversationApi from './api/conversation';
 import * as agentApi from './api/agent';
@@ -164,6 +165,7 @@ function App() {
 
   return (
     <div className="flex h-screen w-full bg-white overflow-hidden">
+      <ErrorToast />
       {/* Left sidebar: conversation list (collapsible) */}
       {sidebarOpen && (
         <Sidebar
