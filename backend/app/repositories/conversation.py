@@ -18,25 +18,27 @@ class ConversationRepository(BaseRepository[Conversation]):
     async def get_with_tree(self, id: UUID) -> Conversation | None:
         """Load a conversation with its full message tree and nested children.
 
-        Uses recursive eager loading so the caller receives a fully-populated
-        object graph without additional lazy-load queries.
+        Eager-loads up to 10 levels of children to avoid MissingGreenlet
+        from lazy loads in async context.
         """
+        def _msg():
+            return selectinload(Conversation.messages).selectinload(Message.annotations)
+
+        def _children_opts(depth: int):
+            """Build nested selectinload chain for children up to given depth."""
+            opts = [_msg()]
+            if depth > 0:
+                opts.append(
+                    selectinload(Conversation.children).options(
+                        *_children_opts(depth - 1)
+                    )
+                )
+            return opts
+
         stmt = (
             select(Conversation)
             .where(Conversation.id == id)
-            .options(
-                selectinload(Conversation.messages).selectinload(Message.annotations),
-                selectinload(Conversation.children)
-                .selectinload(Conversation.messages)
-                .selectinload(Message.annotations),
-                selectinload(Conversation.children)
-                .selectinload(Conversation.children)
-                .selectinload(Conversation.messages)
-                .selectinload(Message.annotations),
-                selectinload(Conversation.children)
-                .selectinload(Conversation.children)
-                .selectinload(Conversation.children),
-            )
+            .options(*_children_opts(10))
         )
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()

@@ -12,13 +12,13 @@ from app.core.exceptions import (
 )
 from app.models.conversation import Conversation
 from app.models.message_relation import MessageRelation
+from app.core.config import get_settings
 from app.repositories.conversation import ConversationRepository
 from app.repositories.message import MessageRepository
 
 # Validation constants
 MIN_FORK_TEXT_LENGTH = 1
 MAX_FORK_TEXT_LENGTH = 2000
-MAX_FORK_DEPTH = 4
 
 
 class ForkService:
@@ -75,10 +75,11 @@ class ForkService:
             )
 
         # Check depth limit
+        max_depth = get_settings().MAX_FORK_DEPTH
         depth = await self._get_conversation_depth(parent_conv)
-        if depth >= MAX_FORK_DEPTH:
+        if depth >= max_depth:
             raise ForkDepthExceeded(
-                message=f"分支层级已达上限（最多{MAX_FORK_DEPTH}层），无法继续创建子分支"
+                message=f"分支层级已达上限（最多{max_depth}层），无法继续创建子分支"
             )
 
         # Create the child conversation

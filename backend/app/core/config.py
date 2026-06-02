@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     OPENAI_BASE_URL: str = "https://api.deepseek.com"
     LLM_PROVIDER: str = "openai"
     CORS_ORIGINS: str = "http://localhost:5173"
+    MAX_FORK_DEPTH: int = 2
     APP_ENV: str = "development"
     LOG_LEVEL: str = "INFO"
 
