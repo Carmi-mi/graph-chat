@@ -1,8 +1,75 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useMemo } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { Components } from 'react-markdown';
 import type { Message, Annotation } from '../../schemas';
+
+// Unicode Private Use Area characters as annotation markers — invisible and collision-free
+const ANN_START = '';
+const ANN_END = '';
+
+/**
+ * Wrap annotated text ranges with invisible markers before ReactMarkdown parsing.
+ * Process in reverse offset order so replacements don't shift later positions.
+ */
+function injectAnnotationMarkers(content: string, annotations: Annotation[]): string {
+  const sorted = [...annotations]
+    .filter(a => a.startOffset != null && a.endOffset != null && a.startOffset >= 0 && a.endOffset <= content.length)
+    .sort((a, b) => b.startOffset - a.startOffset);
+
+  let result = content;
+  for (const ann of sorted) {
+    result =
+      result.slice(0, ann.startOffset) +
+      ANN_START +
+      result.slice(ann.startOffset, ann.endOffset) +
+      ANN_END +
+      result.slice(ann.endOffset);
+  }
+  return result;
+}
+
+/** Walk React children tree and wrap marker-delimited segments with highlight spans */
+function highlightAnnotations(children: React.ReactNode): React.ReactNode {
+  return React.Children.map(children, (child) => {
+    if (typeof child === 'string') {
+      if (!child.includes(ANN_START)) return child;
+      const parts: React.ReactNode[] = [];
+      let remaining = child;
+      let key = 0;
+      while (remaining.length > 0) {
+        const startIdx = remaining.indexOf(ANN_START);
+        if (startIdx === -1) {
+          if (remaining) parts.push(remaining);
+          break;
+        }
+        if (startIdx > 0) parts.push(remaining.slice(0, startIdx));
+        const afterStart = remaining.slice(startIdx + 1);
+        const endIdx = afterStart.indexOf(ANN_END);
+        if (endIdx === -1) {
+          parts.push(remaining.slice(startIdx));
+          break;
+        }
+        parts.push(
+          <span
+            key={key++}
+            className="bg-[#667eea]/15 border-b-2 border-[#667eea] rounded-sm cursor-pointer hover:bg-[#667eea]/25 transition-colors"
+          >
+            {afterStart.slice(0, endIdx)}
+          </span>
+        );
+        remaining = afterStart.slice(endIdx + 1);
+      }
+      return parts.length === 1 ? parts[0] : parts;
+    }
+    if (React.isValidElement(child) && child.props.children) {
+      return React.cloneElement(child as React.ReactElement<{ children?: React.ReactNode }>, {
+        children: highlightAnnotations(child.props.children),
+      });
+    }
+    return child;
+  });
+}
 
 interface MessageBubbleProps {
   message: Message;
@@ -72,6 +139,29 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
   const isUser = message.role === 'user';
   const isSystem = message.role === 'system';
 
+  // Pre-process content: inject highlight markers around annotated text ranges
+  const annotatedContent = useMemo(() => {
+    if (!annotationEnabled || !message.annotations.length) return message.content;
+    return injectAnnotationMarkers(message.content, message.annotations);
+  }, [message.content, message.annotations, annotationEnabled]);
+
+  // Components map with inline annotation highlighting for assistant messages
+  const componentsWithAnnotations: Components = useMemo(() => ({
+    ...markdownComponents,
+    p: ({ children }) => <p className="my-1">{highlightAnnotations(children)}</p>,
+    li: ({ children }) => <li className="my-0">{highlightAnnotations(children)}</li>,
+    h1: ({ children }) => <h1 className="text-lg font-bold mt-3 mb-2">{highlightAnnotations(children)}</h1>,
+    h2: ({ children }) => <h2 className="text-base font-bold mt-3 mb-2">{highlightAnnotations(children)}</h2>,
+    h3: ({ children }) => <h3 className="text-sm font-bold mt-2 mb-1">{highlightAnnotations(children)}</h3>,
+    blockquote: ({ children }) => (
+      <blockquote className="border-l-2 border-[#667eea] bg-gray-50 py-1 px-3 rounded-r-lg my-2">
+        {highlightAnnotations(children)}
+      </blockquote>
+    ),
+    td: ({ children }) => <td className="border border-gray-200 px-2 py-1">{highlightAnnotations(children)}</td>,
+    th: ({ children }) => <th className="border border-gray-200 px-2 py-1 bg-gray-50 font-medium">{highlightAnnotations(children)}</th>,
+  }), []);
+
   if (isSystem) {
     return (
       <div className="flex justify-center my-2">
@@ -99,27 +189,10 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
         ) : (
           <ReactMarkdown
             remarkPlugins={[remarkGfm]}
-            components={markdownComponents}
+            components={annotationEnabled && message.annotations.length > 0 ? componentsWithAnnotations : markdownComponents}
           >
-            {message.content}
+            {annotatedContent}
           </ReactMarkdown>
-        )}
-
-        {/* Annotation buttons below message content */}
-        {!isUser && annotationEnabled && message.annotations.length > 0 && (
-          <div className="mt-3 pt-2 border-t border-gray-100 space-y-1">
-            {message.annotations.map((annotation) => (
-              <button
-                key={annotation.id}
-                onClick={() => onAnnotationClick?.(annotation)}
-                className="w-full text-left text-xs text-[#667eea] hover:bg-[#667eea]/5 px-2 py-1 rounded transition-colors flex items-center gap-1"
-              >
-                <span className="underline decoration-dotted underline-offset-2">
-                  {annotation.text.length > 60 ? annotation.text.slice(0, 60) + '...' : annotation.text}
-                </span>
-              </button>
-            ))}
-          </div>
         )}
       </div>
     </div>
