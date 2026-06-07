@@ -63,15 +63,15 @@ function App() {
         if (wasOnSameConversation && prevBranchId && prevBranchId !== id) {
           setCurrentBranchId(prevBranchId);
         }
-        // Don't clear dirty branches here — let the user see them in TreeSidebar
-        // Dirty branches are cleared individually in handleSelectBranch
+        // Clear dirty for root branch — user lands on it when selecting a conversation
+        removeDirtyBranch(id, id);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load conversation');
       } finally {
         setLoading(false);
       }
     },
-    [setCurrentConversation, setCurrentBranchId, setLoading, setError],
+    [setCurrentConversation, setCurrentBranchId, setLoading, setError, removeDirtyBranch],
   );
 
   // Create a new conversation with a default name, then select it
@@ -102,8 +102,11 @@ function App() {
   const handleNavigate = useCallback(
     (id: string) => {
       setCurrentBranchId(id);
+      if (currentConversation) {
+        removeDirtyBranch(currentConversation.id, id);
+      }
     },
-    [setCurrentBranchId],
+    [setCurrentBranchId, currentConversation, removeDirtyBranch],
   );
 
   // Merge handler
@@ -150,6 +153,8 @@ function App() {
         // Refresh the conversation tree
         const conv = await conversationApi.getConversation(currentConversation.id);
         setCurrentConversation(conv);
+        // Clear dirty state for the deleted branch
+        removeDirtyBranch(currentConversation.id, id);
         // If deleted branch was selected, switch to root
         if (currentBranchId === id) {
           setCurrentBranchId(currentConversation.id);
@@ -158,7 +163,7 @@ function App() {
         setError(err instanceof Error ? err.message : 'Failed to delete branch');
       }
     },
-    [currentConversation, currentBranchId, setCurrentConversation, setCurrentBranchId, setError],
+    [currentConversation, currentBranchId, setCurrentConversation, setCurrentBranchId, removeDirtyBranch, setError],
   );
 
   const hasChildren = currentConversation != null && currentConversation.children.length > 0;
