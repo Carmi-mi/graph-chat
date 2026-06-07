@@ -6,6 +6,7 @@ import type { Message, Annotation } from '../../schemas';
 
 // Unicode Private Use Area characters as annotation markers — invisible and collision-free
 const ANN_START = '';
+const ANN_SEP = '';
 const ANN_END = '';
 
 /**
@@ -21,7 +22,7 @@ function injectAnnotationMarkers(content: string, annotations: Annotation[]): st
   for (const ann of sorted) {
     result =
       result.slice(0, ann.startOffset) +
-      ANN_START +
+      ANN_START + ann.id + ANN_SEP +
       result.slice(ann.startOffset, ann.endOffset) +
       ANN_END +
       result.slice(ann.endOffset);
@@ -30,45 +31,62 @@ function injectAnnotationMarkers(content: string, annotations: Annotation[]): st
 }
 
 /** Walk React children tree and wrap marker-delimited segments with highlight spans */
-function highlightAnnotations(children: React.ReactNode): React.ReactNode {
-  return React.Children.map(children, (child) => {
-    if (typeof child === 'string') {
-      if (!child.includes(ANN_START)) return child;
-      const parts: React.ReactNode[] = [];
-      let remaining = child;
-      let key = 0;
-      while (remaining.length > 0) {
-        const startIdx = remaining.indexOf(ANN_START);
-        if (startIdx === -1) {
-          if (remaining) parts.push(remaining);
-          break;
+function highlightAnnotations(
+  children: React.ReactNode,
+  annotations: Annotation[],
+  onAnnotationClick?: (annotation: Annotation) => void,
+): React.ReactNode {
+  const annMap = new Map(annotations.map(a => [a.id, a]));
+  const walk = (node: React.ReactNode): React.ReactNode => {
+    return React.Children.map(node, (child) => {
+      if (typeof child === 'string') {
+        if (!child.includes(ANN_START)) return child;
+        const parts: React.ReactNode[] = [];
+        let remaining = child;
+        let key = 0;
+        while (remaining.length > 0) {
+          const startIdx = remaining.indexOf(ANN_START);
+          if (startIdx === -1) {
+            if (remaining) parts.push(remaining);
+            break;
+          }
+          if (startIdx > 0) parts.push(remaining.slice(0, startIdx));
+          const afterStart = remaining.slice(startIdx + 1);
+          const endIdx = afterStart.indexOf(ANN_END);
+          if (endIdx === -1) {
+            parts.push(remaining.slice(startIdx));
+            break;
+          }
+          const markerContent = afterStart.slice(0, endIdx);
+          const sepIdx = markerContent.indexOf(ANN_SEP);
+          const annId = sepIdx !== -1 ? markerContent.slice(0, sepIdx) : '';
+          const displayText = sepIdx !== -1 ? markerContent.slice(sepIdx + 1) : markerContent;
+          const annotation = annMap.get(annId);
+          parts.push(
+            <span
+              key={key++}
+              className="bg-[#667eea]/15 border-b-2 border-[#667eea] rounded-sm cursor-pointer hover:bg-[#667eea]/25 transition-colors"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (annotation && onAnnotationClick) onAnnotationClick(annotation);
+              }}
+            >
+              {displayText}
+            </span>
+          );
+          remaining = afterStart.slice(endIdx + 1);
         }
-        if (startIdx > 0) parts.push(remaining.slice(0, startIdx));
-        const afterStart = remaining.slice(startIdx + 1);
-        const endIdx = afterStart.indexOf(ANN_END);
-        if (endIdx === -1) {
-          parts.push(remaining.slice(startIdx));
-          break;
-        }
-        parts.push(
-          <span
-            key={key++}
-            className="bg-[#667eea]/15 border-b-2 border-[#667eea] rounded-sm cursor-pointer hover:bg-[#667eea]/25 transition-colors"
-          >
-            {afterStart.slice(0, endIdx)}
-          </span>
-        );
-        remaining = afterStart.slice(endIdx + 1);
+        return parts.length === 1 ? parts[0] : parts;
       }
-      return parts.length === 1 ? parts[0] : parts;
-    }
-    if (React.isValidElement(child) && child.props.children) {
-      return React.cloneElement(child as React.ReactElement<{ children?: React.ReactNode }>, {
-        children: highlightAnnotations(child.props.children),
-      });
-    }
-    return child;
-  });
+      if (React.isValidElement(child) && child.props.children) {
+        return React.cloneElement(child as React.ReactElement<{ children?: React.ReactNode }>, {
+          children: walk(child.props.children),
+        });
+      }
+      return child;
+    });
+  };
+  return walk(children);
 }
 
 interface MessageBubbleProps {
@@ -148,19 +166,19 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
   // Components map with inline annotation highlighting for assistant messages
   const componentsWithAnnotations: Components = useMemo(() => ({
     ...markdownComponents,
-    p: ({ children }) => <p className="my-1">{highlightAnnotations(children)}</p>,
-    li: ({ children }) => <li className="my-0">{highlightAnnotations(children)}</li>,
-    h1: ({ children }) => <h1 className="text-lg font-bold mt-3 mb-2">{highlightAnnotations(children)}</h1>,
-    h2: ({ children }) => <h2 className="text-base font-bold mt-3 mb-2">{highlightAnnotations(children)}</h2>,
-    h3: ({ children }) => <h3 className="text-sm font-bold mt-2 mb-1">{highlightAnnotations(children)}</h3>,
+    p: ({ children }) => <p className="my-1">{highlightAnnotations(children, message.annotations, onAnnotationClick)}</p>,
+    li: ({ children }) => <li className="my-0">{highlightAnnotations(children, message.annotations, onAnnotationClick)}</li>,
+    h1: ({ children }) => <h1 className="text-lg font-bold mt-3 mb-2">{highlightAnnotations(children, message.annotations, onAnnotationClick)}</h1>,
+    h2: ({ children }) => <h2 className="text-base font-bold mt-3 mb-2">{highlightAnnotations(children, message.annotations, onAnnotationClick)}</h2>,
+    h3: ({ children }) => <h3 className="text-sm font-bold mt-2 mb-1">{highlightAnnotations(children, message.annotations, onAnnotationClick)}</h3>,
     blockquote: ({ children }) => (
       <blockquote className="border-l-2 border-[#667eea] bg-gray-50 py-1 px-3 rounded-r-lg my-2">
-        {highlightAnnotations(children)}
+        {highlightAnnotations(children, message.annotations, onAnnotationClick)}
       </blockquote>
     ),
-    td: ({ children }) => <td className="border border-gray-200 px-2 py-1">{highlightAnnotations(children)}</td>,
-    th: ({ children }) => <th className="border border-gray-200 px-2 py-1 bg-gray-50 font-medium">{highlightAnnotations(children)}</th>,
-  }), []);
+    td: ({ children }) => <td className="border border-gray-200 px-2 py-1">{highlightAnnotations(children, message.annotations, onAnnotationClick)}</td>,
+    th: ({ children }) => <th className="border border-gray-200 px-2 py-1 bg-gray-50 font-medium">{highlightAnnotations(children, message.annotations, onAnnotationClick)}</th>,
+  }), [message.annotations, onAnnotationClick]);
 
   if (isSystem) {
     return (
