@@ -34,7 +34,7 @@ function injectAnnotationMarkers(content: string, annotations: Annotation[]): st
 function highlightAnnotations(
   children: React.ReactNode,
   annotations: Annotation[],
-  onAnnotationClick?: (annotation: Annotation) => void,
+  onAnnotationClick?: (annotation: Annotation, x: number, y: number) => void,
 ): React.ReactNode {
   const annMap = new Map(annotations.map(a => [a.id, a]));
   const walk = (node: React.ReactNode): React.ReactNode => {
@@ -68,7 +68,7 @@ function highlightAnnotations(
               className="bg-[#667eea]/15 border-b-2 border-[#667eea] rounded-sm cursor-pointer hover:bg-[#667eea]/25 transition-colors"
               onClick={(e) => {
                 e.stopPropagation();
-                if (annotation && onAnnotationClick) onAnnotationClick(annotation);
+                if (annotation && onAnnotationClick) onAnnotationClick(annotation, e.clientX, e.clientY);
               }}
             >
               {displayText}
@@ -92,7 +92,7 @@ function highlightAnnotations(
 interface MessageBubbleProps {
   message: Message;
   annotationEnabled: boolean;
-  onAnnotationClick?: (annotation: Annotation) => void;
+  onAnnotationClick?: (annotation: Annotation, x: number, y: number) => void;
   onTextSelect?: (messageId: string, selectedText: string, startOffset: number, endOffset: number) => void;
 }
 

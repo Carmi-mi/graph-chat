@@ -5,7 +5,7 @@ import MessageBubble from '../MessageBubble';
 interface MessageListProps {
   messages: Message[];
   annotationEnabled: boolean;
-  onAnnotationClick?: (annotation: Annotation) => void;
+  onAnnotationClick?: (annotation: Annotation, x: number, y: number) => void;
   onTextSelect?: (messageId: string, selectedText: string, startOffset: number, endOffset: number) => void;
 }
 

@@ -32,10 +32,25 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversationId, onNavigate }) =
     useUIStore();
 
   const messageAreaRef = useRef<HTMLDivElement>(null);
+  const popupRef = useRef<HTMLDivElement>(null);
   const { selectedText, position, clearSelection } = useTextSelection(messageAreaRef);
 
   const [suggestions, setSuggestions] = useState<ForkSuggestion[]>([]);
   const [selectedAnnotation, setSelectedAnnotation] = useState<Annotation | null>(null);
+  const [annotationPos, setAnnotationPos] = useState<{ x: number; y: number } | null>(null);
+
+  // Close annotation popup on outside click
+  useEffect(() => {
+    if (!selectedAnnotation) return;
+    const handleOutsideClick = (e: MouseEvent) => {
+      if (popupRef.current && !popupRef.current.contains(e.target as Node)) {
+        setSelectedAnnotation(null);
+        setAnnotationPos(null);
+      }
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, [selectedAnnotation]);
   const [waitingBranchId, setWaitingBranchId] = useState<string | null>(null);
   const [forkingMessageId, setForkingMessageId] = useState<string | null>(null);
 
@@ -230,8 +245,9 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversationId, onNavigate }) =
     [currentBranchId, conversationId, addExploringBranch, setError],
   );
 
-  const handleAnnotationClick = useCallback((annotation: Annotation) => {
+  const handleAnnotationClick = useCallback((annotation: Annotation, x: number, y: number) => {
     setSelectedAnnotation(annotation);
+    setAnnotationPos({ x, y });
   }, []);
 
   const handleAnnotationSuggestion = useCallback(
@@ -243,6 +259,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversationId, onNavigate }) =
           suggestion: suggestionText,
         });
         setSelectedAnnotation(null);
+        setAnnotationPos(null);
         // Refresh conversation tree, preserve current branch
         if (conversationId) {
           const conv = await conversationApi.getConversation(conversationId);
@@ -336,19 +353,18 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversationId, onNavigate }) =
         disabled={!currentBranchId || isLoading || waitingBranchId === currentBranchId}
       />
 
-      {/* Annotation popup overlay */}
-      {selectedAnnotation && (
-        <div className="fixed inset-0 z-40" onClick={() => setSelectedAnnotation(null)}>
-          <div
-            className="absolute top-1/3 left-1/2 -translate-x-1/2"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <AnnotationPopup
-              annotation={selectedAnnotation}
-              onSuggestionClick={handleAnnotationSuggestion}
-              onClose={() => setSelectedAnnotation(null)}
-            />
-          </div>
+      {/* Annotation popup — positioned near click, dismiss via outside-click listener */}
+      {selectedAnnotation && annotationPos && (
+        <div
+          ref={popupRef}
+          className="fixed z-50"
+          style={{ top: annotationPos.y + 8, left: annotationPos.x }}
+        >
+          <AnnotationPopup
+            annotation={selectedAnnotation}
+            onSuggestionClick={handleAnnotationSuggestion}
+            onClose={() => { setSelectedAnnotation(null); setAnnotationPos(null); }}
+          />
         </div>
       )}
     </div>
