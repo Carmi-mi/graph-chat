@@ -22,7 +22,7 @@ function stripMarkdown(text: string): string {
 /** Walk DOM text nodes and apply annotation highlights via native DOM manipulation */
 function applyAnnotationHighlights(
   container: HTMLElement,
-  originalContent: string,
+  _originalContent: string,
   annotations: Annotation[],
   onAnnotationClick: (annotation: Annotation, x: number, y: number) => void,
 ): void {
@@ -40,7 +40,7 @@ function applyAnnotationHighlights(
 
   // Collect all DOM text nodes and build rendered text
   const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
-  const textNodes: { node: Text; renderedStart: number }[] = [];
+  const textNodes: { node: Text | HTMLSpanElement; renderedStart: number }[] = [];
   let renderedText = '';
   while (walker.nextNode()) {
     const textNode = walker.currentNode as Text;
@@ -63,7 +63,7 @@ function applyAnnotationHighlights(
     .filter((x): x is { ann: Annotation; rendered: string; start: number; end: number } => x !== null)
     .sort((a, b) => b.start - a.start); // reverse order
 
-  for (const { ann, rendered, start, end } of sorted) {
+  for (const { ann, start, end } of sorted) {
     // Find which text nodes overlap with this annotation
     for (let i = textNodes.length - 1; i >= 0; i--) {
       const { node, renderedStart } = textNodes[i];

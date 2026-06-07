@@ -10,7 +10,7 @@ import { useTextSelection } from '../../hooks/useTextSelection';
 import * as conversationApi from '../../api/conversation';
 import * as messageApi from '../../api/message';
 import * as agentApi from '../../api/agent';
-import type { Annotation, ForkSuggestion } from '../../schemas';
+import type { Annotation, ForkSuggestion, ConversationWithTree } from '../../schemas';
 
 interface ChatWindowProps {
   conversationId: string | null;
@@ -189,7 +189,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversationId, onNavigate }) =
             if (response.assistantMessage) newMsgs.push(response.assistantMessage);
             return { ...node, messages: [...node.messages, ...newMsgs] };
           }
-          return { ...node, children: node.children.map(appendMessages) };
+          return { ...node, children: node.children.map(appendMessages).filter((n): n is ConversationWithTree => n != null) };
         };
 
         const state = useConversationStore.getState();
@@ -246,8 +246,25 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversationId, onNavigate }) =
   );
 
   const handleAnnotationClick = useCallback((annotation: Annotation, x: number, y: number) => {
+    // Compute edge-aware position before render (popup is w-72=288px, est. max height ~260px)
+    const POPUP_W = 288;
+    const POPUP_H = 260;
+    const MARGIN = 8;
+    let left = x;
+    let top = y + MARGIN;
+
+    if (left + POPUP_W > window.innerWidth - MARGIN) {
+      left = window.innerWidth - POPUP_W - MARGIN;
+    }
+    if (left < MARGIN) left = MARGIN;
+
+    if (top + POPUP_H > window.innerHeight - MARGIN) {
+      top = y - POPUP_H - MARGIN;
+    }
+    if (top < MARGIN) top = MARGIN;
+
     setSelectedAnnotation(annotation);
-    setAnnotationPos({ x, y });
+    setAnnotationPos({ x: left, y: top });
   }, []);
 
   const handleAnnotationSuggestion = useCallback(
@@ -353,12 +370,12 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversationId, onNavigate }) =
         disabled={!currentBranchId || isLoading || waitingBranchId === currentBranchId}
       />
 
-      {/* Annotation popup — positioned near click, dismiss via outside-click listener */}
+      {/* Annotation popup — edge-aware positioning computed in handleAnnotationClick */}
       {selectedAnnotation && annotationPos && (
         <div
           ref={popupRef}
           className="fixed z-50"
-          style={{ top: annotationPos.y + 8, left: annotationPos.x }}
+          style={{ top: annotationPos.y, left: annotationPos.x }}
         >
           <AnnotationPopup
             annotation={selectedAnnotation}
