@@ -28,7 +28,7 @@ const MessageList: React.FC<MessageListProps> = ({
   return (
     <div
       ref={scrollRef}
-      className="flex-1 overflow-y-auto px-4 py-6 space-y-1 scroll-smooth"
+      className="flex-1 overflow-y-auto px-4 py-6 space-y-1 scroll-smooth scroll-chat"
     >
       {messages.length === 0 && (
         <div className="flex flex-col items-center justify-center h-full text-gray-400">

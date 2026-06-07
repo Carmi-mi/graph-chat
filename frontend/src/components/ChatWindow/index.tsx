@@ -315,7 +315,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversationId, onNavigate }) =
       )}
 
       {/* Message list */}
-      <div ref={messageAreaRef} className="flex-1 overflow-hidden">
+      <div ref={messageAreaRef} className="flex-1 flex flex-col overflow-hidden">
         <MessageList
           messages={messages}
           annotationEnabled={annotationEnabled}
