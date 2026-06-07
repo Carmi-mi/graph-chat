@@ -63,6 +63,10 @@ class MessageService:
             # Auto-generate annotations for the assistant reply
             if self.annotation_repo:
                 await self._generate_annotations(assistant_msg.id, assistant_content)
+                # Re-load message so annotations are included in the response
+                refreshed = await self.message_repo.get_with_annotations(assistant_msg.id)
+                if refreshed:
+                    assistant_msg = refreshed
 
         return user_message, assistant_msg
 

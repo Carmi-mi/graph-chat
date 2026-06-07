@@ -3,6 +3,7 @@
 from uuid import UUID
 
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 
 from app.models.message import Message
 from app.repositories.base import BaseRepository
@@ -12,6 +13,17 @@ class MessageRepository(BaseRepository[Message]):
     """Repository for Message CRUD and conversation-scoped queries."""
 
     model = Message
+
+    async def get_with_annotations(self, id: UUID) -> Message | None:
+        """Retrieve a message with eagerly-loaded annotations."""
+        stmt = (
+            select(Message)
+            .where(Message.id == id)
+            .options(selectinload(Message.annotations))
+            .execution_options(populate_existing=True)
+        )
+        result = await self.session.execute(stmt)
+        return result.scalar_one_or_none()
 
     async def get_by_conversation(
         self, conversation_id: UUID, skip: int = 0, limit: int = 500
