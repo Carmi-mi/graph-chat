@@ -57,20 +57,36 @@ function applyAnnotationHighlights(
   // Normalize renderedText: newlines → spaces for matching
   const normalizedRendered = renderedText.replace(/\n/g, ' ');
 
-  // For each annotation, find its rendered text in the DOM using prefix match
-  // (LLM may slightly rephrase text when generating annotations, so exact match can fail)
+  // For each annotation, find its rendered text in the DOM
+  // (LLM may slightly rephrase text, so use fuzzy matching)
   const sorted = [...annotations]
     .map(ann => {
       const rendered = stripMarkdown(ann.text);
-      // Match using first 40 chars as anchor (beginning of passage is usually exact)
-      const anchor = rendered.slice(0, 40);
-      let idx = normalizedRendered.indexOf(anchor);
-      if (idx === -1) {
-        // Fallback: shorter anchor
-        idx = normalizedRendered.indexOf(rendered.slice(0, 20));
+      // Try exact match first
+      let idx = normalizedRendered.indexOf(rendered);
+      if (idx !== -1) {
+        return { ann, start: idx, end: idx + rendered.length };
       }
-      if (idx === -1) return null;
-      return { ann, start: idx, end: idx + rendered.length };
+      // Fuzzy match: sliding window, sample every 3rd char for speed
+      const sample = rendered.slice(0, 60);
+      const step = 3;
+      let bestPos = -1;
+      let bestScore = 0;
+      for (let i = 0; i <= normalizedRendered.length - 10; i++) {
+        let score = 0;
+        for (let j = 0; j < sample.length && i + j < normalizedRendered.length; j += step) {
+          if (normalizedRendered[i + j] === sample[j]) score++;
+        }
+        if (score > bestScore) {
+          bestScore = score;
+          bestPos = i;
+        }
+      }
+      const threshold = Math.floor(sample.length / step * 0.7);
+      if (bestPos >= 0 && bestScore >= threshold) {
+        return { ann, start: bestPos, end: bestPos + rendered.length };
+      }
+      return null;
     })
     .filter((x): x is { ann: Annotation; start: number; end: number } => x !== null)
     .sort((a, b) => b.start - a.start); // reverse order
