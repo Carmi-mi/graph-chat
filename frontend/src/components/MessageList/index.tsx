@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useLayoutEffect } from 'react';
 import type { Message, Annotation } from '../../schemas';
 import MessageBubble from '../MessageBubble';
 
@@ -17,18 +17,18 @@ const MessageList: React.FC<MessageListProps> = ({
 }) => {
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Auto-scroll to bottom on new messages
-  useEffect(() => {
+  // Scroll to bottom instantly when messages change
+  useLayoutEffect(() => {
     const container = scrollRef.current;
     if (container) {
       container.scrollTop = container.scrollHeight;
     }
-  }, [messages.length]);
+  }, [messages]);
 
   return (
     <div
       ref={scrollRef}
-      className="flex-1 overflow-y-auto px-4 py-6 space-y-1 scroll-smooth scroll-chat"
+      className="flex-1 overflow-y-auto px-4 py-6 space-y-1 scroll-chat"
     >
       {messages.length === 0 && (
         <div className="flex flex-col items-center justify-center h-full text-gray-400">
