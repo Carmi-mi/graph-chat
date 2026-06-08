@@ -269,27 +269,57 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversationId, onNavigate }) =
 
   const handleAnnotationSuggestion = useCallback(
     async (suggestionText: string) => {
-      if (!selectedAnnotation) return;
+      if (!selectedAnnotation || !conversationId) return;
       try {
-        await messageApi.forkMessage(selectedAnnotation.messageId, {
+        const child = await messageApi.forkMessage(selectedAnnotation.messageId, {
           selectedText: selectedAnnotation.text,
           suggestion: suggestionText,
         });
         setSelectedAnnotation(null);
         setAnnotationPos(null);
-        // Refresh conversation tree, preserve current branch
-        if (conversationId) {
-          const conv = await conversationApi.getConversation(conversationId);
+
+        // Mark new branch as waiting so input shows spinner
+        setWaitingBranchId(child.id);
+
+        // Refresh tree immediately so the new branch appears
+        const conv = await conversationApi.getConversation(conversationId);
+        useConversationStore.setState({
+          currentConversation: conv,
+          currentBranchId: currentBranchId,
+        });
+
+        // Auto-send message in background to trigger LLM reply + annotations
+        const userContent = suggestionText || selectedAnnotation.text;
+        messageApi.sendMessage({
+          conversationId: child.id,
+          role: 'user',
+          content: `请深入探讨：${userContent}`,
+        }).then(async () => {
+          setWaitingBranchId(null);
+          // Refresh tree, preserve whichever branch user is currently viewing
+          const updated = await conversationApi.getConversation(conversationId);
+          const state = useConversationStore.getState();
           useConversationStore.setState({
-            currentConversation: conv,
-            currentBranchId: currentBranchId,
+            currentConversation: updated,
+            currentBranchId: state.currentBranchId,
           });
-        }
+        }).catch(() => { setWaitingBranchId(null); });
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to create branch');
       }
     },
     [selectedAnnotation, conversationId, currentBranchId, setError],
+  );
+
+  const handleAnnotationAsk = useCallback(
+    (suggestionText: string) => {
+      if (!selectedAnnotation) return;
+      const question = `关于「${selectedAnnotation.text}」：${suggestionText}`;
+      setSelectedAnnotation(null);
+      setAnnotationPos(null);
+      handleSend(question);
+    },
+    [selectedAnnotation, handleSend],
   );
 
   const handleBreadcrumbClick = useCallback(
@@ -380,6 +410,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversationId, onNavigate }) =
           <AnnotationPopup
             annotation={selectedAnnotation}
             onSuggestionClick={handleAnnotationSuggestion}
+            onSuggestionAsk={handleAnnotationAsk}
             onClose={() => { setSelectedAnnotation(null); setAnnotationPos(null); }}
           />
         </div>

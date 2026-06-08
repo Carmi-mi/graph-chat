@@ -3,6 +3,7 @@
 from collections.abc import AsyncGenerator
 
 from fastapi import Depends
+from sqlalchemy import event
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.core.config import get_settings
@@ -22,10 +23,12 @@ from app.services.message import MessageService
 # ---------------------------------------------------------------------------
 
 _settings = get_settings()
+_is_sqlite = _settings.DATABASE_URL.startswith("sqlite")
 _engine = create_async_engine(
     _settings.DATABASE_URL,
     echo=_settings.is_development,
     future=True,
+    connect_args={"timeout": 30} if _is_sqlite else {},
 )
 _session_factory = async_sessionmaker(_engine, class_=AsyncSession, expire_on_commit=False)
 

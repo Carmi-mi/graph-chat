@@ -1,16 +1,18 @@
 import React from 'react';
-import { X, GitBranch } from 'lucide-react';
+import { X, GitBranch, MessageCircle } from 'lucide-react';
 import type { Annotation } from '../../schemas';
 
 interface PopupProps {
   annotation: Annotation;
   onSuggestionClick: (suggestionText: string) => void;
+  onSuggestionAsk: (suggestionText: string) => void;
   onClose: () => void;
 }
 
 const Popup: React.FC<PopupProps> = ({
   annotation,
   onSuggestionClick,
+  onSuggestionAsk,
   onClose,
 }) => {
   return (
@@ -43,14 +45,12 @@ const Popup: React.FC<PopupProps> = ({
           </p>
         )}
         {annotation.suggestions.map((suggestion, index) => (
-          <button
+          <div
             key={index}
-            onClick={() => onSuggestionClick(suggestion.text)}
-            className="w-full text-left px-3 py-2 rounded-lg hover:bg-[#667eea]/5 transition-colors group"
+            className="px-3 py-2 rounded-lg hover:bg-[#667eea]/5 transition-colors group"
           >
             <div className="flex items-start gap-2">
-              <GitBranch className="w-3.5 h-3.5 text-[#667eea] mt-0.5 shrink-0 opacity-60 group-hover:opacity-100 transition-opacity" />
-              <div>
+              <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-gray-800">
                   {suggestion.text}
                 </p>
@@ -60,8 +60,24 @@ const Popup: React.FC<PopupProps> = ({
                   </p>
                 )}
               </div>
+              <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                <button
+                  onClick={() => onSuggestionAsk(suggestion.text)}
+                  className="p-1 rounded hover:bg-[#667eea]/10 transition-colors"
+                  title="在当前对话追问"
+                >
+                  <MessageCircle className="w-3.5 h-3.5 text-[#667eea]" />
+                </button>
+                <button
+                  onClick={() => onSuggestionClick(suggestion.text)}
+                  className="p-1 rounded hover:bg-[#667eea]/10 transition-colors"
+                  title="分支探索"
+                >
+                  <GitBranch className="w-3.5 h-3.5 text-[#667eea]" />
+                </button>
+              </div>
             </div>
-          </button>
+          </div>
         ))}
       </div>
     </div>
