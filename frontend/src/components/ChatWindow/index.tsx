@@ -125,7 +125,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversationId, onNavigate }) =
   const handleForkText = useCallback(async () => {
     if (!forkingMessageId || !selectedText) return;
     try {
-      await messageApi.forkMessage(forkingMessageId, {
+      const child = await messageApi.forkMessage(forkingMessageId, {
         selectedText,
       });
       clearSelection();
@@ -134,13 +134,13 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversationId, onNavigate }) =
         const conv = await conversationApi.getConversation(conversationId);
         useConversationStore.setState({
           currentConversation: conv,
-          currentBranchId: currentBranchId,
+          currentBranchId: child.id,
         });
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create branch');
     }
-  }, [forkingMessageId, selectedText, conversationId, currentBranchId, clearSelection, setError]);
+  }, [forkingMessageId, selectedText, conversationId, clearSelection, setError]);
 
   // Build breadcrumb trail from root to current branch
   const breadcrumbs: BreadcrumbItem[] = [];
@@ -281,11 +281,11 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversationId, onNavigate }) =
         // Mark new branch as waiting so input shows spinner
         setWaitingBranchId(child.id);
 
-        // Refresh tree immediately so the new branch appears
+        // Refresh tree and switch to the new branch
         const conv = await conversationApi.getConversation(conversationId);
         useConversationStore.setState({
           currentConversation: conv,
-          currentBranchId: currentBranchId,
+          currentBranchId: child.id,
         });
 
         // Auto-send message in background to trigger LLM reply + annotations
