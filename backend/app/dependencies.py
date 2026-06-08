@@ -99,6 +99,7 @@ def get_message_service(
         conversation_repository=conv_repo,
         llm_provider=llm,
         annotation_repository=ann_repo,
+        session_factory=_session_factory,
     )
 
 

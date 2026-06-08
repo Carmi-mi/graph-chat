@@ -59,10 +59,20 @@ class OpenAIProvider(ILLMProvider):
             {
                 "role": "system",
                 "content": (
-                    "Analyze the following text and identify key passages that could "
-                    "be explored further. Return a JSON array of objects with keys: "
-                    "'text' (the passage), 'startOffset', 'endOffset', 'suggestions' "
-                    "(array of {text, description})."
+                    "你是一个思维启发助手。阅读以下文本，找出能激发读者新想法的段落。\n\n"
+                    "对每个段落，给出2-3个建议，每个建议必须是以下类型之一：\n"
+                    "- 反直觉：提出与文中观点相反或出人意料的角度\n"
+                    "- 跨领域类比：用其他领域的概念来解释或质疑文中观点\n"
+                    "- 现实反例：找出文中观点在现实中不成立的案例\n"
+                    "- 被忽略的角度：指出文中没有考虑到的重要维度\n\n"
+                    "不要重复文中已有的内容，不要做简单的展开阐述。每个建议都应该让读者产生"
+                    "\"原来还能这样想\"的感觉。\n\n"
+                    "返回JSON数组，每个对象包含：\n"
+                    "- text: 标注的原文段落\n"
+                    "- startOffset: 起始字符偏移\n"
+                    "- endOffset: 结束字符偏移\n"
+                    "- suggestions: 数组，每个元素包含 text（建议标题，10字以内）"
+                    "和 description（具体说明，30字以内）"
                 ),
             },
             {"role": "user", "content": content},

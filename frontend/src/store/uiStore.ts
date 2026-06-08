@@ -25,7 +25,7 @@ const useUIStore = create<UIState>()(
     (set) => ({
   // Initial state
   sidebarOpen: true,
-  annotationEnabled: false,
+  annotationEnabled: true,
   exploringBranches: [],
   dirtyBranches: {},
 

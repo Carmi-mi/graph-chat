@@ -1,6 +1,10 @@
 """Message business-logic service."""
 
+import asyncio
+from collections.abc import AsyncGenerator
 from uuid import UUID
+
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.core.exceptions import ConversationNotFound, MessageEmptyContent, MessageNotFound
 from app.models.message import Message
@@ -19,11 +23,13 @@ class MessageService:
         conversation_repository: ConversationRepository,
         llm_provider: ILLMProvider,
         annotation_repository: AnnotationRepository | None = None,
+        session_factory: async_sessionmaker | None = None,
     ) -> None:
         self.message_repo = message_repository
         self.conversation_repo = conversation_repository
         self.llm = llm_provider
         self.annotation_repo = annotation_repository
+        self._session_factory = session_factory
 
     async def send_message(
         self, conversation_id: UUID, role: str, content: str
@@ -33,7 +39,7 @@ class MessageService:
         1. Validate conversation exists.
         2. Persist the user message.
         3. If role is 'user', generate and persist an assistant reply.
-        4. Auto-generate annotations for the assistant reply.
+        4. Start annotation generation in background (non-blocking).
         5. Return (user_message, assistant_message | None).
         """
         if not content.strip():
@@ -60,15 +66,34 @@ class MessageService:
                 content=assistant_content,
             )
 
-            # Auto-generate annotations for the assistant reply
-            if self.annotation_repo:
-                await self._generate_annotations(assistant_msg.id, assistant_content)
-                # Re-load message so annotations are included in the response
-                refreshed = await self.message_repo.get_with_annotations(assistant_msg.id)
-                if refreshed:
-                    assistant_msg = refreshed
+            # Start annotation generation in background (non-blocking)
+            if self._session_factory:
+                asyncio.create_task(
+                    self._generate_annotations_bg(assistant_msg.id, assistant_content)
+                )
 
         return user_message, assistant_msg
+
+    async def _generate_annotations_bg(self, message_id: UUID, content: str) -> None:
+        """Generate annotations in a background task with its own session."""
+        try:
+            raw_annotations = await self.llm.generate_annotations(content)
+            async with self._session_factory() as session:
+                repo = AnnotationRepository(session=session)
+                for ann in raw_annotations:
+                    text = ann.get("text", "")
+                    if not text:
+                        continue
+                    await repo.create(
+                        message_id=message_id,
+                        text=text,
+                        start_offset=ann.get("startOffset", 0),
+                        end_offset=ann.get("endOffset", len(text)),
+                        suggestions=ann.get("suggestions", []),
+                    )
+                await session.commit()
+        except Exception:
+            pass
 
     async def _generate_annotations(self, message_id: UUID, content: str) -> None:
         """Generate and persist annotations for an assistant message."""

@@ -38,6 +38,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversationId, onNavigate }) =
   const [suggestions, setSuggestions] = useState<ForkSuggestion[]>([]);
   const [selectedAnnotation, setSelectedAnnotation] = useState<Annotation | null>(null);
   const [annotationPos, setAnnotationPos] = useState<{ x: number; y: number } | null>(null);
+  const [annotationToast, setAnnotationToast] = useState<string | null>(null);
 
   // Close annotation popup on outside click
   useEffect(() => {
@@ -172,6 +173,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversationId, onNavigate }) =
       const sentFromConversationId = conversationId;
       const sentFromBranchId = currentBranchId;
       setWaitingBranchId(currentBranchId);
+      setAnnotationToast(null);
 
       try {
         const response = await messageApi.sendMessage({
@@ -211,6 +213,44 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversationId, onNavigate }) =
         conversationApi.listConversations().then(
           (res) => useConversationStore.getState().setConversations(res.items),
         ).catch(() => {});
+
+        // Poll for annotations until they appear (background LLM task)
+        const pollStart = Date.now();
+        const pollInterval = setInterval(() => {
+          const s = useConversationStore.getState();
+          if (s.currentConversation?.id !== sentFromConversationId || s.currentBranchId !== sentFromBranchId) {
+            clearInterval(pollInterval);
+            return;
+          }
+          conversationApi.getConversation(sentFromConversationId).then((conv) => {
+            const findNode = (node: typeof conv): typeof conv | null => {
+              if (node.id === sentFromBranchId) return node;
+              for (const child of node.children) {
+                const found = findNode(child);
+                if (found) return found;
+              }
+              return null;
+            };
+            const branch = findNode(conv);
+            const hasAnnotations = branch?.messages.some(
+              (m) => m.role === 'assistant' && m.annotations && m.annotations.length > 0,
+            );
+            if (hasAnnotations) {
+              useConversationStore.setState({ currentConversation: conv });
+              clearInterval(pollInterval);
+              const elapsed = ((Date.now() - pollStart) / 1000).toFixed(0);
+              setAnnotationToast(`成功生成标注，用时${elapsed}s`);
+              setTimeout(() => setAnnotationToast(null), 5000);
+            }
+          }).catch(() => {});
+        }, 5000);
+
+        // Safety: stop polling after 180 seconds
+        setTimeout(() => {
+          clearInterval(pollInterval);
+          setAnnotationToast('智能标注超时未成功捕获');
+          setTimeout(() => setAnnotationToast(null), 5000);
+        }, 180000);
       } catch (err) {
         setWaitingBranchId(null);
         setError(err instanceof Error ? err.message : 'Failed to send message');
@@ -392,6 +432,13 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversationId, onNavigate }) =
         onDismiss={() => setSuggestions([])}
         onExplore={handleExplore}
       />
+
+      {/* Annotation toast */}
+      {annotationToast && (
+        <div className={`mx-auto mb-2 px-3 py-1.5 rounded-lg text-xs ${annotationToast.includes('成功') ? 'bg-green-50 border border-green-200 text-green-600' : 'bg-amber-50 border border-amber-200 text-amber-600'}`}>
+          {annotationToast}
+        </div>
+      )}
 
       {/* Input area */}
       <InputArea

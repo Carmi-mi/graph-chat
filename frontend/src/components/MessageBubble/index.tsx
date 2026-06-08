@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { Components } from 'react-markdown';
@@ -16,7 +16,10 @@ function stripMarkdown(text: string): string {
     .replace(/^\s*[-*]\s/gm, '')         // unordered list markers
     .replace(/^\s*\d+\.\s/gm, '')        // ordered list markers
     .replace(/^\s*>\s?/gm, '')           // blockquotes
-    .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1'); // links
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1') // links
+    .replace(/\n+/g, ' ')               // newlines → space (HTML rendering collapses them)
+    .replace(/\s{2,}/g, ' ')            // collapse multiple spaces
+    .trim();
 }
 
 /** Walk DOM text nodes and apply annotation highlights via native DOM manipulation */
@@ -25,7 +28,7 @@ function applyAnnotationHighlights(
   _originalContent: string,
   annotations: Annotation[],
   onAnnotationClick: (annotation: Annotation, x: number, y: number) => void,
-): void {
+): { matched: number; total: number } {
   // Remove existing highlights
   container.querySelectorAll('.ann-highlight').forEach(el => {
     const parent = el.parentNode;
@@ -36,7 +39,7 @@ function applyAnnotationHighlights(
   });
   container.normalize();
 
-  if (!annotations.length) return;
+  if (!annotations.length) return { matched: 0, total: 0 };
 
   // Collect all DOM text nodes and build rendered text
   const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
@@ -51,16 +54,25 @@ function applyAnnotationHighlights(
   }
   if (!textNodes.length) return;
 
-  // For each annotation, find its rendered text in the DOM
-  // Process in reverse order to avoid offset invalidation
+  // Normalize renderedText: newlines → spaces for matching
+  const normalizedRendered = renderedText.replace(/\n/g, ' ');
+
+  // For each annotation, find its rendered text in the DOM using prefix match
+  // (LLM may slightly rephrase text when generating annotations, so exact match can fail)
   const sorted = [...annotations]
     .map(ann => {
       const rendered = stripMarkdown(ann.text);
-      const idx = renderedText.indexOf(rendered);
+      // Match using first 40 chars as anchor (beginning of passage is usually exact)
+      const anchor = rendered.slice(0, 40);
+      let idx = normalizedRendered.indexOf(anchor);
+      if (idx === -1) {
+        // Fallback: shorter anchor
+        idx = normalizedRendered.indexOf(rendered.slice(0, 20));
+      }
       if (idx === -1) return null;
-      return { ann, rendered, start: idx, end: idx + rendered.length };
+      return { ann, start: idx, end: idx + rendered.length };
     })
-    .filter((x): x is { ann: Annotation; rendered: string; start: number; end: number } => x !== null)
+    .filter((x): x is { ann: Annotation; start: number; end: number } => x !== null)
     .sort((a, b) => b.start - a.start); // reverse order
 
   for (const { ann, start, end } of sorted) {
@@ -105,6 +117,8 @@ function applyAnnotationHighlights(
       textNodes[i] = { node: parts.find((p): p is HTMLSpanElement => p instanceof HTMLSpanElement) || node, renderedStart };
     }
   }
+
+  return { matched: sorted.length, total: annotations.length };
 }
 
 interface MessageBubbleProps {
@@ -159,6 +173,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
   onTextSelect,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
+  const [matchInfo, setMatchInfo] = useState<{ matched: number; total: number } | null>(null);
 
   const handleMouseUp = useCallback(() => {
     if (!onTextSelect || message.role !== 'assistant') return;
@@ -176,8 +191,12 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
 
   // Apply annotation highlights via DOM post-processing
   useEffect(() => {
-    if (!annotationEnabled || !message.annotations.length || !containerRef.current || !onAnnotationClick) return;
-    applyAnnotationHighlights(containerRef.current, message.content, message.annotations, onAnnotationClick);
+    if (!annotationEnabled || !message.annotations.length || !containerRef.current || !onAnnotationClick) {
+      setMatchInfo(null);
+      return;
+    }
+    const result = applyAnnotationHighlights(containerRef.current, message.content, message.annotations, onAnnotationClick);
+    setMatchInfo(result);
   }, [message.content, message.annotations, annotationEnabled, onAnnotationClick]);
 
   const isUser = message.role === 'user';
@@ -197,22 +216,34 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
 
   return (
     <div className={`flex ${isUser ? 'justify-end' : 'justify-start'} mb-4`}>
-      <div
-        ref={containerRef}
-        className={`max-w-[70%] px-4 py-3 rounded-2xl text-sm leading-relaxed ${
-          isUser
-            ? 'bg-gradient-to-r from-[#667eea] to-[#764ba2] text-white rounded-br-md'
-            : 'bg-white border border-gray-200 text-gray-800 rounded-bl-md shadow-sm'
-        }`}
-        onMouseUp={handleMouseUp}
-      >
-        {isUser ? (
-          <span>{message.content}</span>
-        ) : (
-          <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
-            {message.content}
-          </ReactMarkdown>
+      <div className="relative">
+        {/* Annotation match indicator */}
+        {!isUser && matchInfo && matchInfo.total > 0 && (
+          <div className={`absolute -top-2 -right-2 z-10 px-1.5 py-0.5 rounded-full text-[10px] font-mono ${
+            matchInfo.matched === matchInfo.total
+              ? 'bg-green-100 text-green-700 border border-green-300'
+              : 'bg-red-100 text-red-700 border border-red-300'
+          }`}>
+            {matchInfo.matched}/{matchInfo.total}
+          </div>
         )}
+        <div
+          ref={containerRef}
+          className={`max-w-[70%] px-4 py-3 rounded-2xl text-sm leading-relaxed ${
+            isUser
+              ? 'bg-gradient-to-r from-[#667eea] to-[#764ba2] text-white rounded-br-md'
+              : 'bg-white border border-gray-200 text-gray-800 rounded-bl-md shadow-sm'
+          }`}
+          onMouseUp={handleMouseUp}
+        >
+          {isUser ? (
+            <span>{message.content}</span>
+          ) : (
+            <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+              {message.content}
+            </ReactMarkdown>
+          )}
+        </div>
       </div>
     </div>
   );
