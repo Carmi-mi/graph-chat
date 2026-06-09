@@ -31,6 +31,7 @@ class ConversationResponse(BaseModel):
     fork_from: UUID | None = Field(None, alias="forkFrom")
     fork_text: str | None = Field(None, alias="forkText")
     auto_exploring: bool = Field(False, alias="autoExploring")
+    context_summary: str | None = Field(None, alias="contextSummary")
     created_at: datetime = Field(..., alias="createdAt")
     updated_at: datetime = Field(..., alias="updatedAt")
 

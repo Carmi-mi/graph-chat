@@ -25,6 +25,7 @@ class Conversation(Base):
     )
     fork_text: Mapped[str | None] = mapped_column(Text, nullable=True)
     auto_exploring: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    context_summary: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # Relationships
     messages = relationship(

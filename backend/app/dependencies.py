@@ -30,6 +30,14 @@ _engine = create_async_engine(
     future=True,
     connect_args={"timeout": 30} if _is_sqlite else {},
 )
+
+if _is_sqlite:
+    @event.listens_for(_engine.sync_engine, "connect")
+    def _set_sqlite_pragma(dbapi_conn, connection_record):
+        cursor = dbapi_conn.cursor()
+        cursor.execute("PRAGMA busy_timeout=5000")
+        cursor.close()
+
 _session_factory = async_sessionmaker(_engine, class_=AsyncSession, expire_on_commit=False)
 
 

@@ -13,6 +13,9 @@ from app.repositories.conversation import ConversationRepository
 from app.repositories.message import MessageRepository
 from app.services.llm import ILLMProvider
 
+# Store background tasks to prevent garbage collection
+_background_tasks: set[asyncio.Task] = set()
+
 
 class MessageService:
     """Send, retrieve, and manage messages within conversations."""
@@ -66,18 +69,33 @@ class MessageService:
                 content=assistant_content,
             )
 
-            # Start annotation generation in background (non-blocking)
+            # Generate annotations + update summary in background (non-blocking)
             if self._session_factory:
-                asyncio.create_task(
-                    self._generate_annotations_bg(assistant_msg.id, assistant_content)
+                task = asyncio.create_task(
+                    self._generate_annotations_bg(
+                        assistant_msg.id, assistant_content,
+                        content,  # user message
+                        conversation_id,
+                        conv.context_summary,
+                    )
                 )
+                _background_tasks.add(task)
+                task.add_done_callback(_background_tasks.discard)
 
         return user_message, assistant_msg
 
-    async def _generate_annotations_bg(self, message_id: UUID, content: str) -> None:
-        """Generate annotations in a background task with its own session."""
+    async def _generate_annotations_bg(
+        self,
+        message_id: UUID,
+        assistant_content: str,
+        user_content: str,
+        conversation_id: UUID,
+        old_summary: str | None,
+    ) -> None:
+        """Generate annotations using summary, then update summary."""
         try:
-            raw_annotations = await self.llm.generate_annotations(content)
+            # 1. Generate annotations (old summary + assistant reply)
+            raw_annotations = await self.llm.generate_annotations(assistant_content, old_summary)
             async with self._session_factory() as session:
                 repo = AnnotationRepository(session=session)
                 for ann in raw_annotations:
@@ -92,13 +110,23 @@ class MessageService:
                         suggestions=ann.get("suggestions", []),
                     )
                 await session.commit()
+
+            # 2. Update summary (old summary + latest exchange)
+            new_summary = await self.llm.update_summary(old_summary, user_content, assistant_content)
+            if new_summary:
+                async with self._session_factory() as session:
+                    conv_repo = ConversationRepository(session=session)
+                    conv = await conv_repo.get(conversation_id)
+                    if conv:
+                        conv.context_summary = new_summary
+                        await session.commit()
         except Exception:
             pass
 
-    async def _generate_annotations(self, message_id: UUID, content: str) -> None:
+    async def _generate_annotations(self, message_id: UUID, content: str, summary: str | None = None) -> None:
         """Generate and persist annotations for an assistant message."""
         try:
-            raw_annotations = await self.llm.generate_annotations(content)
+            raw_annotations = await self.llm.generate_annotations(content, summary)
             for ann in raw_annotations:
                 text = ann.get("text", "")
                 if not text:

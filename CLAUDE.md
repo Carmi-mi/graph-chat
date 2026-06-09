@@ -14,19 +14,30 @@ Graph Chat is a collaborative research agent that uses a tree/network (graph) co
 
 ## Tech Stack
 
-- **Frontend:** React 18 + TypeScript 5 + Vite 5 + Tailwind CSS 3 + Zustand 4 + Lucide React
-- **Backend:** Python 3.11+ + FastAPI + SQLAlchemy 2 (async) + PostgreSQL 15 + OpenAI SDK
+- **Frontend:** React 19 + TypeScript 6 + Vite 8 + Tailwind CSS 3 + Zustand 4 + Lucide React
+- **Backend:** Python 3.11+ + FastAPI + SQLAlchemy 2 (async) + OpenAI SDK
+- **Database:** SQLite (dev) / PostgreSQL 15 (prod via Docker)
 - **Deployment:** Docker Compose (frontend:3000, backend:8000, PostgreSQL)
 
 ## Commands
+
+### Quick Start (both services)
+```bash
+./start-dev.sh start       # Start frontend + backend
+./start-dev.sh stop        # Stop both
+./start-dev.sh restart     # Restart both
+./start-dev.sh status      # Show running status
+./start-dev.sh logs        # Tail both log files
+```
 
 ### Frontend
 ```bash
 cd frontend
 npm install
-npm run dev          # Vite dev server, proxies /api to localhost:8000
-npm run build
-npm run lint
+npm run dev          # Vite dev server on :5173, proxies /api to localhost:8000
+npm run build        # TypeScript compile + Vite build
+npm run lint         # ESLint
+npm run test         # Vitest (jsdom environment)
 ```
 
 ### Backend
@@ -35,18 +46,18 @@ cd backend
 python -m venv venv
 venv\Scripts\activate   # Windows; or: source venv/bin/activate
 pip install -r requirements.txt
-uvicorn app.main:app --reload
+uvicorn app.main:app --reload   # Runs on :8000, API docs at /docs
 
 # Tests
 pytest tests/unit/ -v
 pytest tests/integration/ -v
-# Single test
-pytest tests/unit/test_fork.py::test_fork_creates_new_conversation -v
+# Single test (use class::method format)
+pytest tests/unit/test_fork.py::TestForkService::test_fork_success -v
 ```
 
 ### Production
 ```bash
-docker-compose up
+docker-compose up   # frontend:3000, backend:8000, postgres:5432
 ```
 
 ## Architecture
@@ -72,12 +83,12 @@ MVP 阶段不使用 React Router。对话切换通过 Zustand 状态管理（`cu
 ### Frontend Layering
 
 ```
-api/           → Axios HTTP client wrappers (conversation.ts, message.ts, agent.ts)
+api/           → Axios HTTP client wrappers (conversation.ts, message.ts, annotation.ts, agent.ts)
 schemas/       → TypeScript type definitions (aligned with backend Pydantic models)
-store/         → Zustand stores (conversationStore.ts, uiStore.ts)
-hooks/         → Custom React hooks (useConversation, useAnnotation, useMerge)
+store/         → Zustand stores with persist middleware (conversationStore.ts, uiStore.ts)
+hooks/         → Custom React hooks (useConversation, useAnnotation, useTextSelection)
 services/      → Pure utility functions (treeUtils.ts, annotationUtils.ts)
-components/    → UI components organized by feature (ChatWindow/, TreeSidebar/, MergeModal/, etc.)
+components/    → UI components organized by feature
 ```
 
 ### Data Model
@@ -102,7 +113,7 @@ The core data structure is a **DAG (directed acyclic graph) of messages** organi
 ### Core Algorithms
 
 - **Fork suggestion:** triggers when annotations >= 3, or comparison keywords detected, or high info density
-- **Auto-explore:** AI self-Q&A loop within a branch up to `max_depth`, with convergence detection
+- **Auto-explore:** AI self-Q&A loop within a branch up to `max_depth`, with convergence detection (word-overlap similarity threshold 0.7). Runs as background `asyncio.create_task`; poll `GET /api/agent/status/{convId}` every 3s for progress.
 - **Merge:** extracts conclusions from multiple branches, deduplicates, LLM synthesizes a summary
 
 ### Exploration Cancellation Policy (MVP)
@@ -126,11 +137,11 @@ The core data structure is a **DAG (directed acyclic graph) of messages** organi
 ### Error Handling
 
 Custom exception hierarchy rooted at `GraphChatException` with `code` and `status_code` fields:
-- `NotFound` (404)
-- `ValidationError` (400)
-- `LLMError` (502)
+- `NotFound` (404): `ConversationNotFound`, `MessageNotFound`, `AnnotationNotFound`
+- `ValidationError` (400): `ForkTextTooShort`, `ForkTextTooLong`, `ForkFromNonAssistant`, `ForkDepthExceeded`, `MessageEmptyContent`
+- `LLMError` (502): `LLMProviderError`
 
-Global handler registered in `main.py` returns `{"code": ..., "message": ...}`.
+Global handler in `main.py` returns `{"error": {"code": ..., "message": ..., "detail": ...}}`.
 
 ### Testing
 
@@ -153,69 +164,24 @@ Wired in `dependencies.py` (the composition root).
 
 ### LLM Abstraction
 
-`ILLMProvider` abstract interface with concrete implementations:
-- `OpenAIProvider` — real LLM calls
-- `MockLLMProvider` — preset responses for dev/test
+`ILLMProvider` abstract interface with 4 methods:
+- `complete(messages)` — chat completion
+- `generate_annotations(content)` — analyze text, return annotation dicts
+- `suggest_forks(content, annotations)` — suggest fork points
+- `synthesize(conclusions)` — merge multiple conclusions into one
+
+Two implementations: `OpenAIProvider` (real API, configured via `OPENAI_BASE_URL`/`OPENAI_MODEL`) and `MockLLMProvider` (deterministic responses for dev/test). Factory: `get_llm_provider_instance()` checks `LLM_PROVIDER` setting.
+
+### Key Patterns
+
+- **Pydantic camelCase aliases** — backend schemas use `Field(alias="camelCase")` matching frontend TypeScript interfaces
+- **Zustand with persist** — both stores persist to localStorage
+- **Annotation via DOM post-processing** — `applyAnnotationHighlights` walks DOM text nodes after ReactMarkdown renders
+- **Background tasks** — auto-explore uses `asyncio.create_task` with fresh DB sessions per operation
 
 ## Project Status
 
 All milestones M1-M7 are complete. The project has a fully implemented frontend (React 19 + TypeScript) and backend (FastAPI + SQLAlchemy) with 37+ tests. Next step: end-to-end integration testing and deployment.
-
-## Agent Team 协作规范
-
-### 角色定义
-
-| Agent | 职责 | 可派生的 Sub-agent |
-|-------|------|-------------------|
-| **Coordinator** | 解析里程碑、分配任务、同步进度、处理跨模块依赖、冲突仲裁 | — |
-| **Frontend Agent** | React/TypeScript 实现，负责前端所有里程碑 | UI Component Agent, State/Store Agent, API Client Agent |
-| **Backend Agent** | Python/FastAPI 实现，负责后端所有里程碑 | Schema Agent, Service Agent, Repository Agent, Router Agent |
-| **Test Agent** | 单元测试、集成测试、覆盖率检查、回归测试 | — |
-| **Code Review Agent** | 对照本文件和 AI代码规范.md 审查代码质量（命名、解耦、错误处理、类型完整性、边界条件） | — |
-| **API Contract Agent** | 维护前后端接口一致性：Pydantic schema ↔ TypeScript types 对齐、接口变更同步、错误码一致性 | — |
-| **Doc Agent** | 文档同步更新（API 文档、类型对齐报告、README、技术架构文档） | — |
-
-### 协作流程
-
-```
-Coordinator 分配任务
-    ├── Frontend Agent    ← 前端任务
-    ├── Backend Agent     ← 后端任务  （可并行，通过 API 契约对齐）
-    ├── API Contract Agent ← 接口契约定义与同步
-    ├── Doc Agent         ← 文档任务
-    └── Test Agent        ← 测试任务（实现完成后触发）
-
-每阶段结束：
-    ├── API Contract Agent 验证前后端一致性
-    ├── Code Review Agent 审查代码质量
-    ├── Test Agent 验证测试通过
-    ├── Doc Agent 同步文档
-    └── Coordinator 确认进入下一阶段
-```
-
-### 并行开发协议
-
-前后端可并行推进同一里程碑，通过以下方式同步：
-1. **API 契约优先** — API Contract Agent 先定义接口契约（Pydantic schema → TypeScript types），前后端据此并行开发
-2. **Mock 模式** — 前端使用 Mock 数据独立开发，不依赖后端就绪
-3. **接口冻结** — 每个里程碑的 API 接口在开发开始前由 API Contract Agent 锁定，变更需 Coordinator 审批
-4. **对齐验证** — 每阶段结束由 API Contract Agent 运行类型对齐检查，生成对齐报告
-
-### 任务派发规则
-
-- Coordinator 使用 Agent tool 派发任务，每个 agent 收到自包含的 prompt
-- 独立任务并行派发（如前端骨架 + 后端骨架同时启动）
-- 有依赖的任务串行执行（如测试需在实现完成后）
-- 每个 agent 完成后向 Coordinator 汇报，Coordinator 更新进度
-
-### 质量门禁
-
-每个里程碑交付前必须通过：
-- [ ] Code Review（命名、解耦、错误处理、类型完整性）
-- [ ] 单元测试覆盖率 80%+
-- [ ] 集成测试核心流程通过
-- [ ] 文档与代码同步
-- [ ] 前后端接口一致性验证
 
 ## Key Documentation Files
 
@@ -227,3 +193,5 @@ Coordinator 分配任务
 | `AI代码规范.md` | Coding standards for AI assistants |
 | `项目实现计划.md` | Milestone plan M1-M7 with task breakdowns |
 | `交互原型.html` | Interactive HTML prototype of the UI |
+| `docs/API接口文档.md` | Complete API endpoint documentation |
+| `docs/环境变量与错误码.md` | Environment variables and error code reference |

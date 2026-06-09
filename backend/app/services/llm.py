@@ -18,8 +18,13 @@ class ILLMProvider(ABC):
         ...
 
     @abstractmethod
-    async def generate_annotations(self, content: str) -> list[dict]:
+    async def generate_annotations(self, content: str, summary: str | None = None) -> list[dict]:
         """Analyze content and return a list of annotation dicts."""
+        ...
+
+    @abstractmethod
+    async def update_summary(self, old_summary: str | None, user_msg: str, assistant_msg: str) -> str:
+        """Update conversation summary with a new exchange."""
         ...
 
     @abstractmethod
@@ -54,28 +59,36 @@ class OpenAIProvider(ILLMProvider):
                 detail=str(exc),
             ) from exc
 
-    async def generate_annotations(self, content: str) -> list[dict]:
+    async def generate_annotations(self, content: str, summary: str | None = None) -> list[dict]:
+        context_text = ""
+        if summary:
+            context_text = f"\n\n对话背景摘要：{summary}\n"
+
         prompt = [
             {
                 "role": "system",
                 "content": (
-                    "你是一个思维启发助手。阅读以下文本，找出能激发读者新想法的段落。\n\n"
-                    "对每个段落，给出2-3个建议，每个建议必须是以下类型之一：\n"
-                    "- 反直觉：提出与文中观点相反或出人意料的角度\n"
-                    "- 跨领域类比：用其他领域的概念来解释或质疑文中观点\n"
-                    "- 现实反例：找出文中观点在现实中不成立的案例\n"
-                    "- 被忽略的角度：指出文中没有考虑到的重要维度\n\n"
-                    "不要重复文中已有的内容，不要做简单的展开阐述。每个建议都应该让读者产生"
-                    "\"原来还能这样想\"的感觉。\n\n"
+                    "你是一个思维启发助手。阅读以下AI回复文本，标注其中值得深入探索的关键词或短语。\n\n"
+                    "## 标注规则\n"
+                    "- 只标注关键词或短语（3-15个字），不要标注整句或整段\n"
+                    "- 标注内容必须与对话讨论的主题紧密相关，不要脱离上下文\n\n"
+                    "## 建议规则\n"
+                    "对每个标注，给出1-2个建议，类型为以下之一：\n"
+                    "- 反直觉：提出与文中观点相反的角度\n"
+                    "- 跨领域类比：用其他领域的概念来质疑或补充\n"
+                    "- 现实反例：指出文中观点不成立的案例\n"
+                    "- 被忽略的角度：文中未考虑的重要维度\n\n"
+                    "建议必须紧扣对话主题，不要天马行空。\n\n"
+                    "## 输出格式\n"
                     "返回JSON数组，每个对象包含：\n"
-                    "- text: 标注的原文段落\n"
+                    "- text: 标注的原文短语（3-15字）\n"
                     "- startOffset: 起始字符偏移\n"
                     "- endOffset: 结束字符偏移\n"
-                    "- suggestions: 数组，每个元素包含 text（建议标题，10字以内）"
-                    "和 description（具体说明，30字以内）"
+                    "- suggestions: 数组，每个元素包含 text（建议标题，8字以内）"
+                    "和 description（具体说明，20字以内）"
                 ),
             },
-            {"role": "user", "content": content},
+            {"role": "user", "content": f"{context_text}\n当前AI回复内容：\n{content}"},
         ]
         try:
             raw = await self.complete(prompt)
@@ -91,6 +104,35 @@ class OpenAIProvider(ILLMProvider):
                 message=f"Annotation generation failed: {exc}",
                 detail=str(exc),
             ) from exc
+
+    async def update_summary(self, old_summary: str | None, user_msg: str, assistant_msg: str) -> str:
+        old = old_summary or "（无）"
+        prompt = [
+            {
+                "role": "system",
+                "content": (
+                    "你是一个对话摘要维护助手。根据旧摘要和最新一轮对话，输出更新后的摘要。\n\n"
+                    "摘要要求：\n"
+                    "- 100字以内\n"
+                    "- 记录：用户目标、讨论的关键话题、当前方向\n"
+                    "- 简洁精炼，只保留对理解上下文有帮助的信息\n"
+                    "- 直接输出摘要文本，不要加任何前缀或格式"
+                ),
+            },
+            {
+                "role": "user",
+                "content": (
+                    f"旧摘要：{old}\n\n"
+                    f"用户：{user_msg}\n"
+                    f"AI：{assistant_msg}\n\n"
+                    "请输出更新后的摘要："
+                ),
+            },
+        ]
+        try:
+            return await self.complete(prompt)
+        except Exception:
+            return old_summary or ""
 
     async def suggest_forks(self, content: str, annotations: list) -> list[dict]:
         prompt = [
@@ -173,28 +215,36 @@ class MockLLMProvider(ILLMProvider):
             "as that seems most relevant to your research goals."
         )
 
-    async def generate_annotations(self, content: str) -> list[dict]:
+    async def generate_annotations(self, content: str, summary: str | None = None) -> list[dict]:
         words = content.split()
-        mid = len(content) // 3
+        # Pick a short phrase (2-4 words) near the start
+        phrase1 = " ".join(words[:min(3, len(words))]) if words else content[:min(10, len(content))]
+        mid = len(words) // 2
+        phrase2 = " ".join(words[mid:mid + min(3, len(words) - mid)]) if mid < len(words) else ""
+        offset1 = content.find(phrase1) if phrase1 else 0
+        offset2 = content.find(phrase2) if phrase2 else len(content) // 2
         return [
             {
-                "text": content[:min(50, len(content))],
-                "startOffset": 0,
-                "endOffset": min(50, len(content)),
+                "text": phrase1,
+                "startOffset": max(0, offset1),
+                "endOffset": max(0, offset1) + len(phrase1),
                 "suggestions": [
-                    {"text": "Explore foundational assumptions", "description": "Examine the underlying principles"},
-                    {"text": "Compare with alternatives", "description": "Look at competing approaches"},
+                    {"text": "换个角度", "description": "从相反立场重新审视这个观点"},
                 ],
             },
             {
-                "text": content[mid:mid + min(50, len(content) - mid)] if mid < len(content) else "",
-                "startOffset": mid,
-                "endOffset": mid + min(50, len(content) - mid),
+                "text": phrase2,
+                "startOffset": max(0, offset2),
+                "endOffset": max(0, offset2) + len(phrase2),
                 "suggestions": [
-                    {"text": "Investigate practical challenges", "description": "Real-world implementation barriers"},
+                    {"text": "跨领域类比", "description": "其他领域是否有类似模式"},
                 ],
             },
         ]
+
+    async def update_summary(self, old_summary: str | None, user_msg: str, assistant_msg: str) -> str:
+        base = old_summary or ""
+        return f"{base}\n用户：{user_msg[:30]}... AI：{assistant_msg[:30]}...".strip()
 
     async def suggest_forks(self, content: str, annotations: list) -> list[dict]:
         return [
