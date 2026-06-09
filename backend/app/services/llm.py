@@ -1,12 +1,27 @@
 """LLM provider abstraction and implementations."""
 
 import json
+import os
 from abc import ABC, abstractmethod
 
 from openai import AsyncOpenAI
 
 from app.core.config import get_settings
 from app.core.exceptions import LLMProviderError
+
+
+def _log_llm(messages: list[dict], reply: str, provider: str) -> None:
+    """Write LLM input/output to debug log file."""
+    _path = os.path.join(os.path.dirname(__file__), "..", "..", "llm_debug.log")
+    with open(_path, "a", encoding="utf-8") as f:
+        f.write(f"\n{'='*60}\n")
+        f.write(f"[LLM INPUT] provider={provider} messages={len(messages)}\n")
+        for i, msg in enumerate(messages):
+            f.write(f"  [{i}] role={msg['role']} | content={msg['content'][:300]}\n")
+        f.write(f"{'='*60}\n")
+        f.write(f"[LLM OUTPUT] provider={provider}\n")
+        f.write(f"  {reply[:500]}\n")
+        f.write(f"{'='*60}\n")
 
 
 class ILLMProvider(ABC):
@@ -52,7 +67,9 @@ class OpenAIProvider(ILLMProvider):
                 messages=messages,
                 temperature=0.7,
             )
-            return response.choices[0].message.content or ""
+            reply = response.choices[0].message.content or ""
+            _log_llm(messages, reply, f"openai/{self.model}")
+            return reply
         except Exception as exc:
             raise LLMProviderError(
                 message=f"OpenAI completion failed: {exc}",
@@ -197,7 +214,7 @@ class MockLLMProvider(ILLMProvider):
     async def complete(self, messages: list[dict]) -> str:
         last = messages[-1]["content"] if messages else ""
         if len(messages) <= 1:
-            return (
+            reply = (
                 f"That's an interesting point about \"{last[:60]}\". "
                 "Let me think about this from a few angles.\n\n"
                 "First, we could explore the foundational assumptions behind this idea. "
@@ -205,15 +222,18 @@ class MockLLMProvider(ILLMProvider):
                 "Third, comparing this with alternative approaches might reveal new insights.\n\n"
                 "Would you like to dive deeper into any of these directions?"
             )
-        return (
-            f"Building on our discussion about \"{last[:40]}\"...\n\n"
-            "Here are some key considerations:\n"
-            "1. The core concept has strong theoretical backing\n"
-            "2. Practical implementation may face certain challenges\n"
-            "3. There are interesting parallels in related fields\n\n"
-            "I'd suggest we explore the practical aspects further, "
-            "as that seems most relevant to your research goals."
-        )
+        else:
+            reply = (
+                f"Building on our discussion about \"{last[:40]}\"...\n\n"
+                "Here are some key considerations:\n"
+                "1. The core concept has strong theoretical backing\n"
+                "2. Practical implementation may face certain challenges\n"
+                "3. There are interesting parallels in related fields\n\n"
+                "I'd suggest we explore the practical aspects further, "
+                "as that seems most relevant to your research goals."
+            )
+        _log_llm(messages, reply, "mock")
+        return reply
 
     async def generate_annotations(self, content: str, summary: str | None = None) -> list[dict]:
         words = content.split()

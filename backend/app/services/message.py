@@ -1,13 +1,19 @@
 """Message business-logic service."""
 
 import asyncio
+import logging
+import os
 from collections.abc import AsyncGenerator
 from uuid import UUID
 
+logger = logging.getLogger(__name__)
+
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.core.exceptions import ConversationNotFound, MessageEmptyContent, MessageNotFound
 from app.models.message import Message
+from app.models.message_relation import MessageRelation
 from app.repositories.annotation import AnnotationRepository
 from app.repositories.conversation import ConversationRepository
 from app.repositories.message import MessageRepository
@@ -156,5 +162,56 @@ class MessageService:
     async def _generate_reply(self, conversation_id: UUID) -> str:
         """Build chat history and ask the LLM for a reply."""
         messages = await self.message_repo.get_by_conversation(conversation_id)
-        chat_history = [{"role": m.role, "content": m.content} for m in messages]
+        chat_history: list[dict] = []
+
+        # If this is a forked branch, prepend parent context
+        fork_context = await self._get_fork_context(conversation_id)
+        if fork_context:
+            chat_history.append({"role": "system", "content": fork_context})
+
+        chat_history.extend({"role": m.role, "content": m.content} for m in messages)
         return await self.llm.complete(chat_history)
+
+    async def _get_fork_context(self, conversation_id: UUID) -> str | None:
+        """If this conversation is a fork, return parent context for the LLM prompt.
+
+        Returns a system message containing:
+        - Parent conversation's context_summary (background of prior discussion)
+        - Full text of the source assistant message (the one user forked from)
+        """
+        conv = await self.conversation_repo.get(conversation_id)
+        if conv is None or conv.parent_id is None:
+            return None
+
+        # Find the fork relation: source message (parent) -> fork_root message (this conv)
+        stmt = (
+            select(MessageRelation)
+            .join(Message, MessageRelation.child_id == Message.id)
+            .where(
+                Message.conversation_id == conversation_id,
+                MessageRelation.relation_type == "fork",
+            )
+            .limit(1)
+        )
+        result = await self.message_repo.session.execute(stmt)
+        relation = result.scalar_one_or_none()
+        if relation is None:
+            return None
+
+        # Get the source message content
+        source_msg = await self.message_repo.get(relation.parent_id)
+        if source_msg is None:
+            return None
+
+        # Get parent conversation's context_summary
+        parent_conv = await self.conversation_repo.get(conv.parent_id)
+        summary = parent_conv.context_summary if parent_conv else None
+
+        # Build context message
+        parts = []
+        if summary:
+            parts.append(f"以下是之前对话的背景摘要：\n{summary}")
+            logger.info("Fork context | summary=%s", summary[:100])
+        parts.append(f"以下是用户展开分支所依据的原始回复：\n{source_msg.content}")
+        logger.info("Fork context | source_msg=%s", source_msg.content[:100])
+        return "\n\n".join(parts)

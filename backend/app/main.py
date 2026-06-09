@@ -1,5 +1,6 @@
 """FastAPI application entry point."""
 
+import logging
 from contextlib import asynccontextmanager
 from collections.abc import AsyncGenerator
 
@@ -28,6 +29,19 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 def create_app() -> FastAPI:
     """Application factory."""
     settings = get_settings()
+
+    # Configure logging for app loggers
+    _log_level = getattr(logging, settings.LOG_LEVEL.upper(), logging.INFO)
+    _fmt = logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s")
+    _handler = logging.StreamHandler()
+    _handler.setFormatter(_fmt)
+
+    # Configure root logger
+    _root = logging.getLogger()
+    _root.setLevel(_log_level)
+    # Only add our handler if root has none (avoid duplicates on reload)
+    if not _root.handlers:
+        _root.addHandler(_handler)
 
     app = FastAPI(
         title="Graph Chat API",
