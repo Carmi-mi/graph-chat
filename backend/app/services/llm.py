@@ -10,17 +10,95 @@ from app.core.config import get_settings
 from app.core.exceptions import LLMProviderError
 
 
-def _log_llm(messages: list[dict], reply: str, provider: str) -> None:
-    """Write LLM input/output to debug log file."""
+def _truncate(text: str, limit: int = 200) -> str:
+    """Truncate text to limit, preserving structure for multi-line content."""
+    if not text or len(text) <= limit:
+        return text
+    lines = text.split("\n")
+    result, length = [], 0
+    for line in lines:
+        if length + len(line) + 1 > limit:
+            result.append(line[:max(0, limit - length)] + "...")
+            break
+        result.append(line)
+        length += len(line) + 1
+    return "\n".join(result)
+
+
+def _format_content(content: str, truncate_parts: bool = True) -> str:
+    """Format message content, splitting structured sections for separate truncation."""
+    if not truncate_parts or len(content) <= 300:
+        return content
+
+    parts = []
+    remaining = content
+    while remaining:
+        # Split by known structured sections
+        found = False
+        for marker in ("以下是之前对话的背景摘要：\n", "以下是用户展开分支所依据的原始回复：\n",
+                       "当前AI回复内容：\n", "对话背景摘要："):
+            idx = remaining.find(marker)
+            if idx > 0:
+                prefix = remaining[:idx].rstrip()
+                if prefix:
+                    parts.append(("text", prefix))
+                remaining = remaining[idx:]
+                break
+        else:
+            found = False
+            break
+        found = True
+
+    if not parts:
+        return _truncate(content)
+
+    # Process remaining content with section markers
+    sections = []
+    current = remaining
+    while current:
+        next_pos = -1
+        next_marker = ""
+        for marker in ("以下是之前对话的背景摘要：\n", "以下是用户展开分支所依据的原始回复：\n",
+                       "当前AI回复内容：\n", "对话背景摘要："):
+            pos = current.find(marker, 1)
+            if pos != -1 and (next_pos == -1 or pos < next_pos):
+                next_pos = pos
+                next_marker = marker
+        if next_pos == -1:
+            sections.append(current)
+            break
+        sections.append(current[:next_pos])
+        current = current[next_pos:]
+
+    formatted = []
+    for section in sections:
+        formatted.append(_truncate(section))
+    parts_str = [f"{t}: {_truncate(v)}" if t == "text" else _truncate(v) for t, v in parts]
+    return "\n---\n".join(parts_str + formatted)
+
+
+def _log_llm(messages: list[dict], reply: str, provider: str, scenario: str = "chat") -> None:
+    """Write LLM input/output to debug log file.
+
+    Args:
+        scenario: One of 'chat', 'annotation', 'summary', 'fork_suggest',
+                  'synthesize', 'complete'. Controls content formatting.
+    """
     _path = os.path.join(os.path.dirname(__file__), "..", "..", "llm_debug.log")
+    truncate_parts = scenario in ("annotation", "summary", "fork_suggest")
+
     with open(_path, "a", encoding="utf-8") as f:
         f.write(f"\n{'='*60}\n")
-        f.write(f"[LLM INPUT] provider={provider} messages={len(messages)}\n")
+        f.write(f"[LLM INPUT] provider={provider} scenario={scenario} messages={len(messages)}\n")
         for i, msg in enumerate(messages):
-            f.write(f"  [{i}] role={msg['role']} | content={msg['content'][:300]}\n")
+            formatted = _format_content(msg["content"], truncate_parts=truncate_parts)
+            f.write(f"  [{i}] role={msg['role']}:\n")
+            for line in formatted.split("\n"):
+                f.write(f"    {line}\n")
         f.write(f"{'='*60}\n")
-        f.write(f"[LLM OUTPUT] provider={provider}\n")
-        f.write(f"  {reply[:500]}\n")
+        f.write(f"[LLM OUTPUT] provider={provider} scenario={scenario}\n")
+        for line in reply.split("\n"):
+            f.write(f"  {line}\n")
         f.write(f"{'='*60}\n")
 
 
@@ -28,7 +106,7 @@ class ILLMProvider(ABC):
     """Interface for LLM providers."""
 
     @abstractmethod
-    async def complete(self, messages: list[dict]) -> str:
+    async def complete(self, messages: list[dict], scenario: str = "chat") -> str:
         """Send a chat completion request and return the assistant's reply."""
         ...
 
@@ -60,7 +138,7 @@ class OpenAIProvider(ILLMProvider):
         self.client = AsyncOpenAI(api_key=api_key, base_url=base_url or None)
         self.model = model
 
-    async def complete(self, messages: list[dict]) -> str:
+    async def complete(self, messages: list[dict], scenario: str = "chat") -> str:
         try:
             response = await self.client.chat.completions.create(
                 model=self.model,
@@ -68,7 +146,7 @@ class OpenAIProvider(ILLMProvider):
                 temperature=0.7,
             )
             reply = response.choices[0].message.content or ""
-            _log_llm(messages, reply, f"openai/{self.model}")
+            _log_llm(messages, reply, f"openai/{self.model}", scenario)
             return reply
         except Exception as exc:
             raise LLMProviderError(
@@ -98,9 +176,7 @@ class OpenAIProvider(ILLMProvider):
                     "建议必须紧扣对话主题，不要天马行空。\n\n"
                     "## 输出格式\n"
                     "返回JSON数组，每个对象包含：\n"
-                    "- text: 标注的原文短语（3-15字）\n"
-                    "- startOffset: 起始字符偏移\n"
-                    "- endOffset: 结束字符偏移\n"
+                    "- text: 标注的原文短语（3-15字），必须是原文中出现的准确文字\n"
                     "- suggestions: 数组，每个元素包含 text（建议标题，8字以内）"
                     "和 description（具体说明，20字以内）"
                 ),
@@ -108,7 +184,7 @@ class OpenAIProvider(ILLMProvider):
             {"role": "user", "content": f"{context_text}\n当前AI回复内容：\n{content}"},
         ]
         try:
-            raw = await self.complete(prompt)
+            raw = await self.complete(prompt, scenario="annotation")
             # Strip markdown code fences if present
             cleaned = raw.strip()
             if cleaned.startswith("```"):
@@ -147,7 +223,7 @@ class OpenAIProvider(ILLMProvider):
             },
         ]
         try:
-            return await self.complete(prompt)
+            return await self.complete(prompt, scenario="summary")
         except Exception:
             return old_summary or ""
 
@@ -167,7 +243,7 @@ class OpenAIProvider(ILLMProvider):
             },
         ]
         try:
-            raw = await self.complete(prompt)
+            raw = await self.complete(prompt, scenario="fork_suggest")
             cleaned = raw.strip()
             if cleaned.startswith("```"):
                 cleaned = cleaned.split("\n", 1)[-1].rsplit("```", 1)[0]
@@ -197,7 +273,7 @@ class OpenAIProvider(ILLMProvider):
             },
         ]
         try:
-            return await self.complete(prompt)
+            return await self.complete(prompt, scenario="synthesize")
         except Exception as exc:
             raise LLMProviderError(
                 message=f"Synthesis failed: {exc}",
@@ -211,7 +287,7 @@ class MockLLMProvider(ILLMProvider):
     Returns deterministic responses without calling any external API.
     """
 
-    async def complete(self, messages: list[dict]) -> str:
+    async def complete(self, messages: list[dict], scenario: str = "chat") -> str:
         last = messages[-1]["content"] if messages else ""
         if len(messages) <= 1:
             reply = (
@@ -232,7 +308,7 @@ class MockLLMProvider(ILLMProvider):
                 "I'd suggest we explore the practical aspects further, "
                 "as that seems most relevant to your research goals."
             )
-        _log_llm(messages, reply, "mock")
+        _log_llm(messages, reply, "mock", scenario)
         return reply
 
     async def generate_annotations(self, content: str, summary: str | None = None) -> list[dict]:

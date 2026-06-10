@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 from app.core.exceptions import ConversationNotFound
+from app.repositories.annotation import AnnotationRepository
 from app.repositories.conversation import ConversationRepository
 from app.repositories.message import MessageRepository
 from app.services.llm import ILLMProvider
@@ -57,11 +58,13 @@ class AgentEngine:
         llm_provider: ILLMProvider,
         conversation_repository: ConversationRepository,
         message_repository: MessageRepository,
+        annotation_repository: "AnnotationRepository | None" = None,
         session_factory: "async_sessionmaker[AsyncSession] | None" = None,
     ) -> None:
         self.llm = llm_provider
         self.conversation_repo = conversation_repository
         self.message_repo = message_repository
+        self.annotation_repo = annotation_repository
         self._session_factory = session_factory
 
     async def suggest_forks(
@@ -69,29 +72,44 @@ class AgentEngine:
         conversation_id: uuid.UUID,
         conv_repo: ConversationRepository | None = None,
         msg_repo: MessageRepository | None = None,
+        ann_repo: AnnotationRepository | None = None,
     ) -> list[dict]:
         """Analyze the latest assistant message and return fork suggestions.
 
         Returns a list of dicts with 'selectedText' and 'suggestion' keys.
-        Optionally accepts custom repos for use in background tasks.
+        First tries to read existing annotations from DB; falls back to LLM.
         """
         conv_repo = conv_repo or self.conversation_repo
         msg_repo = msg_repo or self.message_repo
+        ann_repo = ann_repo or self.annotation_repo
 
         conv = await conv_repo.get(conversation_id)
         if conv is None:
             raise ConversationNotFound(message=f"Conversation {conversation_id} not found")
 
         messages = await msg_repo.get_by_conversation(conversation_id)
-        # Find the last assistant message
         assistant_msgs = [m for m in messages if m.role == "assistant"]
         if not assistant_msgs:
             return []
 
         last_msg = assistant_msgs[-1]
-        # Generate annotations, then use them to suggest forks
-        annotations = await self.llm.generate_annotations(last_msg.content)
-        suggestions = await self.llm.suggest_forks(last_msg.content, annotations)
+
+        # Try reading existing annotations from DB
+        if ann_repo:
+            annotations = await ann_repo.get_by_message(last_msg.id)
+            if annotations:
+                suggestions = []
+                for ann in annotations:
+                    for s in (ann.suggestions or []):
+                        suggestions.append({
+                            "selectedText": ann.text,
+                            "suggestion": s.get("text", ""),
+                        })
+                return suggestions
+
+        # Fallback: generate annotations via LLM, then suggest forks
+        raw_annotations = await self.llm.generate_annotations(last_msg.content)
+        suggestions = await self.llm.suggest_forks(last_msg.content, raw_annotations)
         return suggestions
 
     async def start_auto_explore(
@@ -153,9 +171,14 @@ class AgentEngine:
         async def _get_new_repos():
             """Create new repository instances with a fresh session."""
             if self._session_factory is None:
-                return self.conversation_repo, self.message_repo, None
+                return self.conversation_repo, self.message_repo, self.annotation_repo, None
             session = self._session_factory()
-            return ConversationRepository(session=session), MessageRepository(session=session), session
+            return (
+                ConversationRepository(session=session),
+                MessageRepository(session=session),
+                AnnotationRepository(session=session),
+                session,
+            )
 
         async def _cleanup_session(session):
             """Commit and close a session."""
@@ -172,10 +195,10 @@ class AgentEngine:
                 branch.progress = depth + 1
 
                 # Get suggestions for the current conversation using fresh repos
-                conv_repo, msg_repo, session = await _get_new_repos()
+                conv_repo, msg_repo, ann_repo, session = await _get_new_repos()
                 try:
                     suggestions = await self.suggest_forks(
-                        conversation_id, conv_repo=conv_repo, msg_repo=msg_repo
+                        conversation_id, conv_repo=conv_repo, msg_repo=msg_repo, ann_repo=ann_repo
                     )
                 finally:
                     await _cleanup_session(session)
@@ -193,7 +216,7 @@ class AgentEngine:
                         continue
 
                     # Use fresh session for each iteration
-                    conv_repo, msg_repo, session = await _get_new_repos()
+                    conv_repo, msg_repo, ann_repo, session = await _get_new_repos()
                     try:
                         # Create a child conversation
                         child = await conv_repo.create(
@@ -232,7 +255,7 @@ class AgentEngine:
                                 max_sim = sim
                     if max_sim >= CONVERGENCE_THRESHOLD:
                         branch.status = "completed"
-                        conv_repo, _, session = await _get_new_repos()
+                        conv_repo, _, _, session = await _get_new_repos()
                         try:
                             await conv_repo.update(conversation_id, auto_exploring=False, status="active")
                         finally:

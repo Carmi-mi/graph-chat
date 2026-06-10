@@ -77,12 +77,26 @@ class MessageService:
 
             # Generate annotations + update summary in background (non-blocking)
             if self._session_factory:
+                # For fork branches, inherit parent's summary as the starting point
+                summary_for_bg = conv.context_summary
+                if not summary_for_bg and conv.parent_id:
+                    parent_conv = await self.conversation_repo.get(conv.parent_id)
+                    if parent_conv:
+                        summary_for_bg = parent_conv.context_summary
+
+                # Commit messages BEFORE spawning background task to release
+                # SQLite write lock — otherwise the bg task's INSERT hits
+                # "database is locked" because the main session is still committing.
+                await self.message_repo.session.commit()
+                await self.message_repo.session.refresh(user_message)
+                await self.message_repo.session.refresh(assistant_msg)
+
                 task = asyncio.create_task(
                     self._generate_annotations_bg(
                         assistant_msg.id, assistant_content,
                         content,  # user message
                         conversation_id,
-                        conv.context_summary,
+                        summary_for_bg,
                     )
                 )
                 _background_tasks.add(task)
@@ -98,36 +112,72 @@ class MessageService:
         conversation_id: UUID,
         old_summary: str | None,
     ) -> None:
-        """Generate annotations using summary, then update summary."""
-        try:
-            # 1. Generate annotations (old summary + assistant reply)
-            raw_annotations = await self.llm.generate_annotations(assistant_content, old_summary)
-            async with self._session_factory() as session:
-                repo = AnnotationRepository(session=session)
-                for ann in raw_annotations:
-                    text = ann.get("text", "")
-                    if not text:
-                        continue
-                    await repo.create(
-                        message_id=message_id,
-                        text=text,
-                        start_offset=ann.get("startOffset", 0),
-                        end_offset=ann.get("endOffset", len(text)),
-                        suggestions=ann.get("suggestions", []),
-                    )
-                await session.commit()
+        """Generate annotations and update summary in parallel."""
+        LLM_TIMEOUT = 120  # seconds
+        logger.info("bg task started for message %s", message_id)
 
-            # 2. Update summary (old summary + latest exchange)
-            new_summary = await self.llm.update_summary(old_summary, user_content, assistant_content)
-            if new_summary:
+        # Run sequentially — concurrent requests to the same LLM provider
+        # can cause rate-limiting/queuing, making one call hang.
+        try:
+            sum_result = await asyncio.wait_for(
+                self.llm.update_summary(old_summary, user_content, assistant_content),
+                timeout=LLM_TIMEOUT,
+            )
+        except Exception as e:
+            sum_result = e
+            logger.warning("summary LLM failed: %s %s", type(e).__name__, e)
+
+        try:
+            ann_result = await asyncio.wait_for(
+                self.llm.generate_annotations(assistant_content, old_summary),
+                timeout=LLM_TIMEOUT,
+            )
+        except Exception as e:
+            ann_result = e
+            logger.warning("annotation LLM failed: %s %s", type(e).__name__, e)
+
+        logger.info("bg task done | ann_type=%s sum_type=%s", type(ann_result).__name__, type(sum_result).__name__)
+
+        # Persist annotations (if succeeded)
+        if isinstance(ann_result, Exception):
+            logger.warning("annotation LLM failed: %s %s", type(ann_result).__name__, ann_result)
+        elif isinstance(ann_result, list):
+            try:
+                async with self._session_factory() as session:
+                    repo = AnnotationRepository(session=session)
+                    for ann in ann_result:
+                        text = ann.get("text", "")
+                        if not text:
+                            continue
+                        await repo.create(
+                            message_id=message_id,
+                            text=text,
+                            start_offset=ann.get("startOffset"),
+                            end_offset=ann.get("endOffset"),
+                            suggestions=ann.get("suggestions", []),
+                        )
+                    await session.commit()
+            except Exception:
+                logger.warning("annotation persist failed", exc_info=True)
+
+        # Persist summary (if succeeded)
+        if isinstance(sum_result, Exception):
+            logger.warning("summary LLM failed: %s", sum_result)
+        elif isinstance(sum_result, str) and sum_result:
+            try:
                 async with self._session_factory() as session:
                     conv_repo = ConversationRepository(session=session)
                     conv = await conv_repo.get(conversation_id)
                     if conv:
-                        conv.context_summary = new_summary
+                        conv.context_summary = sum_result
                         await session.commit()
-        except Exception:
-            pass
+                        logger.info("summary persisted for conv %s: %s", conversation_id, sum_result[:80])
+                    else:
+                        logger.warning("summary persist skipped: conv %s not found", conversation_id)
+            except Exception:
+                logger.warning("summary persist failed", exc_info=True)
+        else:
+            logger.info("summary skipped: type=%s empty=%s", type(sum_result).__name__, not sum_result)
 
     async def _generate_annotations(self, message_id: UUID, content: str, summary: str | None = None) -> None:
         """Generate and persist annotations for an assistant message."""
@@ -140,8 +190,8 @@ class MessageService:
                 await self.annotation_repo.create(
                     message_id=message_id,
                     text=text,
-                    start_offset=ann.get("startOffset", 0),
-                    end_offset=ann.get("endOffset", len(text)),
+                    start_offset=ann.get("startOffset"),
+                    end_offset=ann.get("endOffset"),
                     suggestions=ann.get("suggestions", []),
                 )
         except Exception:

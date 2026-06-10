@@ -7,8 +7,8 @@ export interface Annotation {
   id: string;
   messageId: string;
   text: string;
-  startOffset: number;
-  endOffset: number;
+  startOffset?: number | null;
+  endOffset?: number | null;
   suggestions: AnnotationSuggestion[];
   createdAt: string;
 }

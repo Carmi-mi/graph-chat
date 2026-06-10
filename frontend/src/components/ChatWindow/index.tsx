@@ -33,6 +33,8 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversationId, onNavigate }) =
 
   const messageAreaRef = useRef<HTMLDivElement>(null);
   const popupRef = useRef<HTMLDivElement>(null);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { selectedText, position, clearSelection } = useTextSelection(messageAreaRef);
 
   const [suggestions, setSuggestions] = useState<ForkSuggestion[]>([]);
@@ -54,6 +56,14 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversationId, onNavigate }) =
   }, [selectedAnnotation]);
   const [waitingBranchId, setWaitingBranchId] = useState<string | null>(null);
   const [forkingMessageId, setForkingMessageId] = useState<string | null>(null);
+
+  // Cleanup poll intervals on unmount
+  useEffect(() => {
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+      if (pollTimeoutRef.current) clearTimeout(pollTimeoutRef.current);
+    };
+  }, []);
 
   // Load conversation on mount or when conversationId changes
   useEffect(() => {
@@ -214,43 +224,51 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversationId, onNavigate }) =
           (res) => useConversationStore.getState().setConversations(res.items),
         ).catch(() => {});
 
-        // Poll for annotations until they appear (background LLM task)
-        const pollStart = Date.now();
-        const pollInterval = setInterval(() => {
-          const s = useConversationStore.getState();
-          if (s.currentConversation?.id !== sentFromConversationId || s.currentBranchId !== sentFromBranchId) {
-            clearInterval(pollInterval);
-            return;
-          }
-          conversationApi.getConversation(sentFromConversationId).then((conv) => {
-            const findNode = (node: typeof conv): typeof conv | null => {
-              if (node.id === sentFromBranchId) return node;
-              for (const child of node.children) {
-                const found = findNode(child);
-                if (found) return found;
-              }
-              return null;
-            };
-            const branch = findNode(conv);
-            const hasAnnotations = branch?.messages.some(
-              (m) => m.role === 'assistant' && m.annotations && m.annotations.length > 0,
-            );
-            if (hasAnnotations) {
-              useConversationStore.setState({ currentConversation: conv });
-              clearInterval(pollInterval);
-              const elapsed = ((Date.now() - pollStart) / 1000).toFixed(0);
-              setAnnotationToast(`成功生成标注，用时${elapsed}s`);
-              setTimeout(() => setAnnotationToast(null), 5000);
-            }
-          }).catch(() => {});
-        }, 5000);
+        // Poll for annotations on the specific assistant message just created
+        const targetMsgId = response.assistantMessage?.id;
+        if (targetMsgId) {
+          // Clear any previous poll
+          if (pollRef.current) clearInterval(pollRef.current);
+          if (pollTimeoutRef.current) clearTimeout(pollTimeoutRef.current);
 
-        // Safety: stop polling after 180 seconds
-        setTimeout(() => {
-          clearInterval(pollInterval);
-          setAnnotationToast('智能标注超时未成功捕获');
-          setTimeout(() => setAnnotationToast(null), 5000);
-        }, 180000);
+          const pollStart = Date.now();
+          pollRef.current = setInterval(() => {
+            const s = useConversationStore.getState();
+            if (s.currentConversation?.id !== sentFromConversationId || s.currentBranchId !== sentFromBranchId) {
+              if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
+              return;
+            }
+            conversationApi.getConversation(sentFromConversationId).then((conv) => {
+              // Find the specific message by ID
+              const findMsg = (node: typeof conv): typeof conv | null => {
+                if (node.messages.some(m => m.id === targetMsgId)) return node;
+                for (const child of node.children) {
+                  const found = findMsg(child);
+                  if (found) return found;
+                }
+                return null;
+              };
+              const branch = findMsg(conv);
+              const targetMsg = branch?.messages.find(m => m.id === targetMsgId);
+              const hasAnnotations = targetMsg?.annotations && targetMsg.annotations.length > 0;
+              if (hasAnnotations) {
+                useConversationStore.setState({ currentConversation: conv });
+                if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
+                if (pollTimeoutRef.current) { clearTimeout(pollTimeoutRef.current); pollTimeoutRef.current = null; }
+                const elapsed = ((Date.now() - pollStart) / 1000).toFixed(0);
+                setAnnotationToast(`成功生成标注，用时${elapsed}s`);
+                setTimeout(() => setAnnotationToast(null), 5000);
+              }
+            }).catch(() => {});
+          }, 5000);
+
+          // Safety: stop polling after 180 seconds
+          pollTimeoutRef.current = setTimeout(() => {
+            if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
+            setAnnotationToast('智能标注超时未成功捕获');
+            setTimeout(() => setAnnotationToast(null), 5000);
+          }, 180000);
+        }
       } catch (err) {
         setWaitingBranchId(null);
         setError(err instanceof Error ? err.message : 'Failed to send message');
@@ -308,7 +326,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversationId, onNavigate }) =
   }, []);
 
   const handleAnnotationSuggestion = useCallback(
-    async (suggestionText: string) => {
+    async (suggestionText: string, suggestionDesc: string) => {
       if (!selectedAnnotation || !conversationId) return;
       try {
         const child = await messageApi.forkMessage(selectedAnnotation.messageId, {
@@ -329,20 +347,56 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversationId, onNavigate }) =
         });
 
         // Auto-send message in background to trigger LLM reply + annotations
-        const userContent = suggestionText || selectedAnnotation.text;
+        const fullSuggestion = suggestionDesc
+          ? `${suggestionText}：${suggestionDesc}`
+          : suggestionText || selectedAnnotation.text;
         messageApi.sendMessage({
           conversationId: child.id,
           role: 'user',
-          content: `请深入探讨：${userContent}`,
-        }).then(async () => {
+          content: `请深入探讨「${selectedAnnotation.text}」的以下方向：${fullSuggestion}`,
+        }).then(async (resp) => {
           setWaitingBranchId(null);
-          // Refresh tree, preserve whichever branch user is currently viewing
           const updated = await conversationApi.getConversation(conversationId);
           const state = useConversationStore.getState();
           useConversationStore.setState({
             currentConversation: updated,
             currentBranchId: state.currentBranchId,
           });
+
+          // Poll for annotations on the new assistant message
+          const targetMsgId = resp.assistantMessage?.id;
+          if (targetMsgId) {
+            if (pollRef.current) clearInterval(pollRef.current);
+            if (pollTimeoutRef.current) clearTimeout(pollTimeoutRef.current);
+
+            const pollStart = Date.now();
+            pollRef.current = setInterval(() => {
+              conversationApi.getConversation(conversationId).then((conv) => {
+                const findMsg = (node: typeof conv): typeof conv | null => {
+                  if (node.messages.some(m => m.id === targetMsgId)) return node;
+                  for (const c of node.children) {
+                    const found = findMsg(c);
+                    if (found) return found;
+                  }
+                  return null;
+                };
+                const branch = findMsg(conv);
+                const targetMsg = branch?.messages.find(m => m.id === targetMsgId);
+                if (targetMsg?.annotations && targetMsg.annotations.length > 0) {
+                  useConversationStore.setState({ currentConversation: conv });
+                  if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
+                  if (pollTimeoutRef.current) { clearTimeout(pollTimeoutRef.current); pollTimeoutRef.current = null; }
+                  const elapsed = ((Date.now() - pollStart) / 1000).toFixed(0);
+                  setAnnotationToast(`成功生成标注，用时${elapsed}s`);
+                  setTimeout(() => setAnnotationToast(null), 5000);
+                }
+              }).catch(() => {});
+            }, 5000);
+
+            pollTimeoutRef.current = setTimeout(() => {
+              if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
+            }, 180000);
+          }
         }).catch(() => { setWaitingBranchId(null); });
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to create branch');
@@ -352,9 +406,12 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversationId, onNavigate }) =
   );
 
   const handleAnnotationAsk = useCallback(
-    (suggestionText: string) => {
+    (suggestionText: string, suggestionDesc: string) => {
       if (!selectedAnnotation) return;
-      const question = `关于「${selectedAnnotation.text}」：${suggestionText}`;
+      const fullSuggestion = suggestionDesc
+        ? `${suggestionText}：${suggestionDesc}`
+        : suggestionText;
+      const question = `关于「${selectedAnnotation.text}」：${fullSuggestion}`;
       setSelectedAnnotation(null);
       setAnnotationPos(null);
       handleSend(question);

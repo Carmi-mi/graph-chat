@@ -22,6 +22,24 @@ function stripMarkdown(text: string): string {
     .trim();
 }
 
+/** Rebuild text nodes array and rendered text from current DOM state */
+function collectTextNodes(container: HTMLElement): {
+  nodes: { node: Text; renderedStart: number }[];
+  renderedText: string;
+} {
+  const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
+  const nodes: { node: Text; renderedStart: number }[] = [];
+  let renderedText = '';
+  while (walker.nextNode()) {
+    const textNode = walker.currentNode as Text;
+    const text = textNode.textContent || '';
+    if (!text) continue;
+    nodes.push({ node: textNode, renderedStart: renderedText.length });
+    renderedText += text;
+  }
+  return { nodes, renderedText };
+}
+
 /** Walk DOM text nodes and apply annotation highlights via native DOM manipulation */
 function applyAnnotationHighlights(
   container: HTMLElement,
@@ -41,33 +59,21 @@ function applyAnnotationHighlights(
 
   if (!annotations.length) return { matched: 0, total: 0 };
 
-  // Collect all DOM text nodes and build rendered text
-  const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
-  const textNodes: { node: Text | HTMLSpanElement; renderedStart: number }[] = [];
-  let renderedText = '';
-  while (walker.nextNode()) {
-    const textNode = walker.currentNode as Text;
-    const text = textNode.textContent || '';
-    if (!text) continue;
-    textNodes.push({ node: textNode, renderedStart: renderedText.length });
-    renderedText += text;
-  }
-  if (!textNodes.length) return;
+  // Initial text node collection
+  let { nodes: textNodes, renderedText } = collectTextNodes(container);
+  if (!textNodes.length) return { matched: 0, total: annotations.length };
 
-  // Normalize renderedText: newlines → spaces for matching
   const normalizedRendered = renderedText.replace(/\n/g, ' ');
 
-  // For each annotation, find its rendered text in the DOM
-  // (LLM may slightly rephrase text, so use fuzzy matching)
-  const sorted = [...annotations]
+  // For each annotation, find its rendered position
+  const matched = [...annotations]
     .map(ann => {
       const rendered = stripMarkdown(ann.text);
-      // Try exact match first
       let idx = normalizedRendered.indexOf(rendered);
       if (idx !== -1) {
         return { ann, start: idx, end: idx + rendered.length };
       }
-      // Fuzzy match: sliding window, sample every 3rd char for speed
+      // Fuzzy match: sliding window, sample every 3rd char
       const sample = rendered.slice(0, 60);
       const step = 3;
       let bestPos = -1;
@@ -89,52 +95,53 @@ function applyAnnotationHighlights(
       return null;
     })
     .filter((x): x is { ann: Annotation; start: number; end: number } => x !== null)
-    .sort((a, b) => b.start - a.start); // reverse order
+    .sort((a, b) => b.start - a.start); // reverse order for DOM insertion
 
-  for (const { ann, start, end } of sorted) {
-    // Find which text nodes overlap with this annotation
+  // Apply highlights, rebuilding textNodes after each one to avoid stale references
+  let highlighted = 0;
+  for (const { ann, start, end } of matched) {
+    // Rebuild text nodes from current DOM state
+    const current = collectTextNodes(container);
+    textNodes = current.nodes;
+    renderedText = current.renderedText;
+
+    let applied = false;
     for (let i = textNodes.length - 1; i >= 0; i--) {
       const { node, renderedStart } = textNodes[i];
       const nodeText = node.textContent || '';
       const nodeEnd = renderedStart + nodeText.length;
 
-      // Check overlap
       const overlapStart = Math.max(start, renderedStart);
       const overlapEnd = Math.min(end, nodeEnd);
       if (overlapStart >= overlapEnd) continue;
 
       const parts: (Text | HTMLSpanElement)[] = [];
 
-      // Text before annotation in this node
       if (overlapStart > renderedStart) {
         parts.push(document.createTextNode(nodeText.slice(0, overlapStart - renderedStart)));
       }
 
-      // Annotated text
       const span = document.createElement('span');
       span.className = 'ann-highlight bg-[#667eea]/15 border-b-2 border-[#667eea] rounded-sm cursor-pointer hover:bg-[#667eea]/25 transition-colors';
       span.textContent = nodeText.slice(overlapStart - renderedStart, overlapEnd - renderedStart);
       span.addEventListener('click', (ev) => { ev.stopPropagation(); onAnnotationClick(ann, ev.clientX, ev.clientY); });
       parts.push(span);
 
-      // Text after annotation in this node
       if (overlapEnd < nodeEnd) {
         parts.push(document.createTextNode(nodeText.slice(overlapEnd - renderedStart)));
       }
 
-      // Replace the text node
       const parent = node.parentNode;
       if (parent) {
         parts.forEach(p => parent.insertBefore(p, node));
         parent.removeChild(node);
       }
-
-      // Update the textNodes entry for this position
-      textNodes[i] = { node: parts.find((p): p is HTMLSpanElement => p instanceof HTMLSpanElement) || node, renderedStart };
+      applied = true;
     }
+    if (applied) highlighted++;
   }
 
-  return { matched: sorted.length, total: annotations.length };
+  return { matched: highlighted, total: annotations.length };
 }
 
 interface MessageBubbleProps {

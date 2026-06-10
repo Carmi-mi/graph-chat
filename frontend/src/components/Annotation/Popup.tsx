@@ -4,8 +4,8 @@ import type { Annotation } from '../../schemas';
 
 interface PopupProps {
   annotation: Annotation;
-  onSuggestionClick: (suggestionText: string) => void;
-  onSuggestionAsk: (suggestionText: string) => void;
+  onSuggestionClick: (text: string, description: string) => void;
+  onSuggestionAsk: (text: string, description: string) => void;
   onClose: () => void;
 }
 
@@ -62,14 +62,14 @@ const Popup: React.FC<PopupProps> = ({
               </div>
               <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
                 <button
-                  onClick={() => onSuggestionAsk(suggestion.text)}
+                  onClick={() => onSuggestionAsk(suggestion.text, suggestion.description)}
                   className="p-1 rounded hover:bg-[#667eea]/10 transition-colors"
                   title="在当前对话追问"
                 >
                   <MessageCircle className="w-3.5 h-3.5 text-[#667eea]" />
                 </button>
                 <button
-                  onClick={() => onSuggestionClick(suggestion.text)}
+                  onClick={() => onSuggestionClick(suggestion.text, suggestion.description)}
                   className="p-1 rounded hover:bg-[#667eea]/10 transition-colors"
                   title="分支探索"
                 >

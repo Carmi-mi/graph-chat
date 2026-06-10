@@ -36,7 +36,7 @@ const MessageList: React.FC<MessageListProps> = ({
           <p className="text-sm mt-1">Send a message to begin exploring ideas</p>
         </div>
       )}
-      {messages.filter(Boolean).map((message) => (
+      {messages.filter((m) => m && m.nodeType !== 'fork_root').map((message) => (
         <MessageBubble
           key={message.id}
           message={message}

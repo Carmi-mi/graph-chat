@@ -135,11 +135,13 @@ def get_agent_engine(
     llm: ILLMProvider = Depends(get_llm_provider),
     conv_repo: ConversationRepository = Depends(get_conversation_repository),
     msg_repo: MessageRepository = Depends(get_message_repository),
+    ann_repo: AnnotationRepository = Depends(get_annotation_repository),
 ) -> AgentEngine:
     return AgentEngine(
         llm_provider=llm,
         conversation_repository=conv_repo,
         message_repository=msg_repo,
+        annotation_repository=ann_repo,
         session_factory=_session_factory,
     )
 
