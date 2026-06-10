@@ -185,11 +185,31 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversationId, onNavigate }) =
       setWaitingBranchId(currentBranchId);
       setAnnotationToast(null);
 
+      // If this is the first user message in a forked branch, wrap with fork context
+      let finalContent = content;
+      if (currentConversation) {
+        const findNode = (node: typeof currentConversation): typeof currentConversation | null => {
+          if (node.id === currentBranchId) return node;
+          for (const child of node.children) {
+            const found = findNode(child);
+            if (found) return found;
+          }
+          return null;
+        };
+        const branchNode = findNode(currentConversation);
+        if (branchNode?.forkText) {
+          const hasUserMsg = branchNode.messages.some(m => m.role === 'user');
+          if (!hasUserMsg) {
+            finalContent = `关于「${branchNode.forkText}」，我想深入了解：${content}`;
+          }
+        }
+      }
+
       try {
         const response = await messageApi.sendMessage({
           conversationId: currentBranchId,
           role: 'user',
-          content,
+          content: finalContent,
         });
         setWaitingBranchId(null);
 
@@ -348,12 +368,12 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversationId, onNavigate }) =
 
         // Auto-send message in background to trigger LLM reply + annotations
         const fullSuggestion = suggestionDesc
-          ? `${suggestionText}：${suggestionDesc}`
+          ? `${suggestionText}（${suggestionDesc}）`
           : suggestionText || selectedAnnotation.text;
         messageApi.sendMessage({
           conversationId: child.id,
           role: 'user',
-          content: `请深入探讨「${selectedAnnotation.text}」的以下方向：${fullSuggestion}`,
+          content: `关于「${selectedAnnotation.text}」，我想深入了解：${fullSuggestion}`,
         }).then(async (resp) => {
           setWaitingBranchId(null);
           const updated = await conversationApi.getConversation(conversationId);
@@ -409,9 +429,9 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversationId, onNavigate }) =
     (suggestionText: string, suggestionDesc: string) => {
       if (!selectedAnnotation) return;
       const fullSuggestion = suggestionDesc
-        ? `${suggestionText}：${suggestionDesc}`
+        ? `${suggestionText}（${suggestionDesc}）`
         : suggestionText;
-      const question = `关于「${selectedAnnotation.text}」：${fullSuggestion}`;
+      const question = `关于「${selectedAnnotation.text}」，我想深入了解：${fullSuggestion}`;
       setSelectedAnnotation(null);
       setAnnotationPos(null);
       handleSend(question);
