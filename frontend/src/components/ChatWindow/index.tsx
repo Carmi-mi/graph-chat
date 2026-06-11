@@ -232,13 +232,19 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversationId, onNavigate }) =
         const stillOnSameBranch = state.currentBranchId === sentFromBranchId;
 
         if (stillOnSameConversation && stillOnSameBranch && state.currentConversation) {
-          // User is still here — append messages directly
+          // User is still on the same branch — append messages directly
           useConversationStore.setState({
             currentConversation: appendMessages(state.currentConversation),
             currentBranchId: sentFromBranchId,
           });
+        } else if (stillOnSameConversation) {
+          // Same conversation, different branch — refresh tree and mark dirty
+          conversationApi.getConversation(sentFromConversationId).then((conv) => {
+            useConversationStore.setState({ currentConversation: conv });
+          }).catch(() => {});
+          useUIStore.getState().addDirtyBranch(sentFromConversationId, sentFromBranchId);
         } else {
-          // User switched away — just mark dirty
+          // Different conversation — just mark dirty
           useUIStore.getState().addDirtyBranch(sentFromConversationId, sentFromBranchId);
         }
 
@@ -381,12 +387,18 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversationId, onNavigate }) =
           setWaitingBranchId(null);
           const updated = await conversationApi.getConversation(conversationId);
           const state = useConversationStore.getState();
-          if (state.currentConversation?.id === conversationId) {
+          if (state.currentConversation?.id === conversationId && state.currentBranchId === child.id) {
+            // Same conversation and same branch — update tree directly
             useConversationStore.setState({
               currentConversation: updated,
               currentBranchId: state.currentBranchId,
             });
+          } else if (state.currentConversation?.id === conversationId) {
+            // Same conversation, different branch — refresh tree and mark dirty
+            useConversationStore.setState({ currentConversation: updated });
+            useUIStore.getState().addDirtyBranch(conversationId, child.id);
           } else {
+            // Different conversation — just mark dirty
             useUIStore.getState().addDirtyBranch(conversationId, child.id);
           }
 

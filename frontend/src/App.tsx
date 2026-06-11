@@ -81,14 +81,25 @@ function App() {
 
   // Branch navigation
   const handleSelectBranch = useCallback(
-    (id: string) => {
-      setCurrentBranchId(id);
-      // Clear dirty dot for this branch
-      if (currentConversation) {
-        removeDirtyBranch(currentConversation.id, id);
+    async (id: string) => {
+      if (!currentConversation) return;
+      const isDirty = (dirtyBranches[currentConversation.id] ?? []).includes(id);
+      if (isDirty) {
+        // Dirty branch — refresh tree from backend, then switch
+        setLoading(true);
+        try {
+          const conv = await conversationApi.getConversation(currentConversation.id);
+          setCurrentConversation(conv);
+        } catch (err) {
+          setError(err instanceof Error ? err.message : 'Failed to refresh conversation');
+        } finally {
+          setLoading(false);
+        }
       }
+      setCurrentBranchId(id);
+      removeDirtyBranch(currentConversation.id, id);
     },
-    [setCurrentBranchId, currentConversation, removeDirtyBranch],
+    [currentConversation, dirtyBranches, setCurrentBranchId, setCurrentConversation, removeDirtyBranch, setLoading, setError],
   );
 
   // ChatWindow onNavigate callback (breadcrumb clicks)
