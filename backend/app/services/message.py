@@ -41,15 +41,15 @@ class MessageService:
         self._session_factory = session_factory
 
     async def send_message(
-        self, conversation_id: UUID, role: str, content: str
-    ) -> tuple[Message, Message | None]:
-        """Persist a user message and optionally trigger an assistant auto-reply.
+        self, conversation_id: UUID, role: str, content: str, *, skip_annotations: bool = False, skip_user_message: bool = False,
+    ) -> tuple[Message | None, Message | None]:
+        """Persist a message and optionally trigger an assistant auto-reply.
 
         1. Validate conversation exists.
-        2. Persist the user message.
+        2. Persist the user message (unless skip_user_message).
         3. If role is 'user', generate and persist an assistant reply.
         4. Start annotation generation in background (non-blocking).
-        5. Return (user_message, assistant_message | None).
+        5. Return (user_message | None, assistant_message | None).
         """
         if not content.strip():
             raise MessageEmptyContent(message="Message content must not be empty")
@@ -58,17 +58,21 @@ class MessageService:
         if conv is None:
             raise ConversationNotFound(message=f"Conversation {conversation_id} not found")
 
-        # Persist the user message
-        user_message = await self.message_repo.create(
-            conversation_id=conversation_id,
-            role=role,
-            content=content,
-        )
+        # Persist the user message (skipped for merge)
+        user_message = None
+        if not skip_user_message:
+            user_message = await self.message_repo.create(
+                conversation_id=conversation_id,
+                role=role,
+                content=content,
+            )
 
         assistant_msg = None
         # Auto-reply from assistant when the user sends a message
         if role == "user":
-            assistant_content = await self._generate_reply(conversation_id)
+            # Pass content as context only when not stored in DB
+            reply_context = content if skip_user_message else None
+            assistant_content = await self._generate_reply(conversation_id, context=reply_context)
             assistant_msg = await self.message_repo.create(
                 conversation_id=conversation_id,
                 role="assistant",
@@ -88,15 +92,17 @@ class MessageService:
                 # SQLite write lock — otherwise the bg task's INSERT hits
                 # "database is locked" because the main session is still committing.
                 await self.message_repo.session.commit()
-                await self.message_repo.session.refresh(user_message)
+                if user_message:
+                    await self.message_repo.session.refresh(user_message)
                 await self.message_repo.session.refresh(assistant_msg)
 
                 task = asyncio.create_task(
                     self._generate_annotations_bg(
                         assistant_msg.id, assistant_content,
-                        content,  # user message
+                        "" if skip_user_message else content,
                         conversation_id,
                         summary_for_bg,
+                        skip_annotations=skip_annotations,
                     )
                 )
                 _background_tasks.add(task)
@@ -111,6 +117,8 @@ class MessageService:
         user_content: str,
         conversation_id: UUID,
         old_summary: str | None,
+        *,
+        skip_annotations: bool = False,
     ) -> None:
         """Generate annotations and update summary in parallel."""
         LLM_TIMEOUT = 120  # seconds
@@ -127,16 +135,18 @@ class MessageService:
             sum_result = e
             logger.warning("summary LLM failed: %s %s", type(e).__name__, e)
 
-        try:
-            ann_result = await asyncio.wait_for(
-                self.llm.generate_annotations(assistant_content, old_summary),
-                timeout=LLM_TIMEOUT,
-            )
-        except Exception as e:
-            ann_result = e
-            logger.warning("annotation LLM failed: %s %s", type(e).__name__, e)
+        ann_result = None
+        if not skip_annotations:
+            try:
+                ann_result = await asyncio.wait_for(
+                    self.llm.generate_annotations(assistant_content, old_summary),
+                    timeout=LLM_TIMEOUT,
+                )
+            except Exception as e:
+                ann_result = e
+                logger.warning("annotation LLM failed: %s %s", type(e).__name__, e)
 
-        logger.info("bg task done | ann_type=%s sum_type=%s", type(ann_result).__name__, type(sum_result).__name__)
+        logger.info("bg task done | ann_type=%s sum_type=%s", type(ann_result).__name__ if ann_result else "skipped", type(sum_result).__name__)
 
         # Persist annotations (if succeeded)
         if isinstance(ann_result, Exception):
@@ -209,7 +219,7 @@ class MessageService:
             raise MessageNotFound(message=f"Message {message_id} not found")
         return msg
 
-    async def _generate_reply(self, conversation_id: UUID) -> str:
+    async def _generate_reply(self, conversation_id: UUID, context: str | None = None) -> str:
         """Build chat history and ask the LLM for a reply."""
         messages = await self.message_repo.get_by_conversation(conversation_id)
         chat_history: list[dict] = []
@@ -218,6 +228,10 @@ class MessageService:
         fork_context = await self._get_fork_context(conversation_id)
         if fork_context:
             chat_history.append({"role": "system", "content": fork_context})
+
+        # Inject context (e.g. merge conclusions) without storing in DB
+        if context:
+            chat_history.append({"role": "user", "content": context})
 
         chat_history.extend({"role": m.role, "content": m.content} for m in messages)
         return await self.llm.complete(chat_history)

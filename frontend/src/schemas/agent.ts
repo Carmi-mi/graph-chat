@@ -37,6 +37,5 @@ export interface MergeRequest {
 }
 
 export interface MergeResponse {
-  conclusion: string;
-  mergeRecordId: string;
+  assistantMessage: import('./message').Message;
 }

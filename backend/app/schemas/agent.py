@@ -55,3 +55,4 @@ class MergeResponse(BaseModel):
 
     conclusion: str
     merge_record_id: UUID = Field(..., alias="mergeRecordId")
+    message_id: UUID = Field(..., alias="messageId")

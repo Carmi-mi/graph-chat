@@ -65,30 +65,34 @@ stop_frontend() {
 
 # 停止后端服务
 stop_backend() {
+    # 优先用 taskkill 按进程名杀（Windows 最可靠）
+    if command -v taskkill &> /dev/null; then
+        taskkill //F //IM uvicorn.exe 2>/dev/null || true
+        sleep 1
+    fi
+    # 回退：按 PID 文件杀
     if [ -f "$BACKEND_PID_FILE" ]; then
         PID=$(cat "$BACKEND_PID_FILE")
-        if kill -0 "$PID" 2>/dev/null; then
-            echo -e "${YELLOW}停止后端服务 (PID: $PID)...${NC}"
-            kill "$PID" 2>/dev/null || true
-            # 等待进程结束
-            for i in {1..10}; do
-                if ! kill -0 "$PID" 2>/dev/null; then
-                    break
-                fi
-                sleep 0.5
-            done
-            # 如果还在运行，强制杀死
-            if kill -0 "$PID" 2>/dev/null; then
-                echo -e "${YELLOW}强制停止后端服务...${NC}"
-                kill -9 "$PID" 2>/dev/null || true
-            fi
-        fi
+        kill -9 "$PID" 2>/dev/null || true
         rm -f "$BACKEND_PID_FILE"
     fi
-    # 清理可能残留的 uvicorn 进程（通过端口 8000）
-    if command -v npx &> /dev/null; then
-        npx kill-port 8000 2>/dev/null || true
-    fi
+}
+
+# 仅重启后端服务（保留前端）
+restart_backend() {
+    echo -e "${YELLOW}重启后端服务...${NC}"
+    stop_backend
+    sleep 1
+    start_backend
+    # 等待健康检查通过
+    for i in {1..10}; do
+        if curl -s http://localhost:8000/health > /dev/null 2>&1; then
+            echo -e "${GREEN}后端服务已就绪${NC}"
+            return 0
+        fi
+        sleep 1
+    done
+    echo -e "${RED}后端服务启动超时${NC}"
 }
 
 # 停止所有服务
@@ -147,7 +151,7 @@ start_backend() {
     fi
 
     # 启动 uvicorn 服务器（后台运行）
-    uvicorn app.main:app --reload --host 0.0.0.0 --port 8000 > "../$BACKEND_LOG" 2>&1 &
+    uvicorn app.main:app --host 0.0.0.0 --port 8000 > "../$BACKEND_LOG" 2>&1 &
     echo $! > "../$BACKEND_PID_FILE"
     cd "$SCRIPT_DIR"
 
@@ -247,15 +251,19 @@ main() {
         logs)
             show_logs
             ;;
+        restart-backend)
+            restart_backend
+            ;;
         *)
-            echo "用法：$0 {start|stop|restart|status|logs}"
+            echo "用法：$0 {start|stop|restart|restart-backend|status|logs}"
             echo ""
             echo "命令："
-            echo "  start    启动所有服务（默认）"
-            echo "  stop     停止所有服务"
-            echo "  restart  重启所有服务"
-            echo "  status   显示服务状态"
-            echo "  logs     显示实时日志"
+            echo "  start           启动所有服务（默认）"
+            echo "  stop            停止所有服务"
+            echo "  restart         重启所有服务"
+            echo "  restart-backend 仅重启后端服务"
+            echo "  status          显示服务状态"
+            echo "  logs            显示实时日志"
             exit 1
             ;;
     esac

@@ -116,8 +116,7 @@ class TestMergeAPI:
         })
         assert merge_resp.status_code == 200
         data = merge_resp.json()
-        assert "conclusion" in data
-        assert "mergeRecordId" in data
+        assert "assistantMessage" in data
 
     async def test_merge_target_not_found(self, client: AsyncClient):
         """POST /api/agent/merge with bad target returns 404."""

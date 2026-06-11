@@ -32,27 +32,28 @@ class TestMergeService:
         return repo
 
     @pytest.fixture
-    def mock_llm(self):
-        llm = AsyncMock()
-        llm.synthesize.return_value = "Synthesized conclusion from all branches."
-        return llm
-
-    @pytest.fixture
     def mock_msg_repo(self):
         repo = AsyncMock()
         repo.get_by_conversation.return_value = [_make_message()]
         return repo
 
     @pytest.fixture
-    def service(self, mock_llm, mock_conv_repo, mock_msg_repo):
+    def mock_msg_service(self):
+        svc = AsyncMock()
+        assistant_msg = _make_message(role="assistant", content="Synthesized conclusion from all branches.")
+        svc.send_message.return_value = (None, assistant_msg)
+        return svc
+
+    @pytest.fixture
+    def service(self, mock_conv_repo, mock_msg_repo, mock_msg_service):
         return MergeService(
-            llm_provider=mock_llm,
             conversation_repository=mock_conv_repo,
             message_repository=mock_msg_repo,
+            message_service=mock_msg_service,
         )
 
-    async def test_merge_success(self, service, mock_conv_repo, mock_llm, mock_msg_repo):
-        """Merging branches collects conclusions and synthesizes them."""
+    async def test_merge_success(self, service, mock_conv_repo, mock_msg_repo, mock_msg_service):
+        """Merging branches collects conclusions and delegates to MessageService."""
         target_id = uuid.uuid4()
         source_id = uuid.uuid4()
         target = _make_conversation(id=target_id)
@@ -67,13 +68,15 @@ class TestMergeService:
 
         result = await service.merge(target_id, [source_id], "keep")
 
-        assert "conclusion" in result
-        assert "merge_record_id" in result
-        assert result["conclusion"] == "Synthesized conclusion from all branches."
-        mock_llm.synthesize.assert_awaited_once()
+        assert "assistant_message" in result
+        assert "user_message" not in result
+        mock_msg_service.send_message.assert_awaited_once()
+        call_kwargs = mock_msg_service.send_message.call_args
+        assert call_kwargs.kwargs.get("skip_annotations") is True
+        assert call_kwargs.kwargs.get("skip_user_message") is True
 
-    async def test_merge_includes_context_summary(self, service, mock_conv_repo, mock_llm, mock_msg_repo):
-        """Merge passes context_summary + last message to LLM."""
+    async def test_merge_passes_conclusions_to_send_message(self, service, mock_conv_repo, mock_msg_repo, mock_msg_service):
+        """Merge passes branch conclusions as content to send_message."""
         target_id = uuid.uuid4()
         source_id = uuid.uuid4()
         target = _make_conversation(id=target_id)
@@ -88,12 +91,12 @@ class TestMergeService:
 
         await service.merge(target_id, [source_id], "keep")
 
-        call_args = mock_llm.synthesize.call_args[0][0]
-        assert len(call_args) == 1
-        assert "Discussion about AI" in call_args[0]
-        assert "Final answer" in call_args[0]
+        call_args = mock_msg_service.send_message.call_args
+        content = call_args.kwargs.get("content", call_args.args[2] if len(call_args.args) > 2 else "")
+        assert "Discussion about AI" in content
+        assert "Final answer" in content
 
-    async def test_merge_annotates_branch_relationships(self, service, mock_conv_repo, mock_llm, mock_msg_repo):
+    async def test_merge_annotates_branch_relationships(self, service, mock_conv_repo, mock_msg_repo, mock_msg_service):
         """Merge annotates parent-child relationships between source branches."""
         target_id = uuid.uuid4()
         parent_id = uuid.uuid4()
@@ -114,12 +117,9 @@ class TestMergeService:
 
         await service.merge(target_id, [parent_id, child_id], "keep")
 
-        call_args = mock_llm.synthesize.call_args[0][0]
-        assert len(call_args) == 2
-        # Child branch should have relationship annotation
-        assert "forked from: Parent Branch" in call_args[1]
-        # Parent branch should not have annotation
-        assert "forked from" not in call_args[0]
+        call_args = mock_msg_service.send_message.call_args
+        content = call_args.kwargs.get("content", call_args.args[2] if len(call_args.args) > 2 else "")
+        assert "forked from: Parent Branch" in content
 
     async def test_merge_target_not_found(self, service, mock_conv_repo):
         """Merging with non-existent target raises ConversationNotFound."""
@@ -139,7 +139,7 @@ class TestMergeService:
         with pytest.raises(ConversationNotFound):
             await service.merge(target_id, [source_id])
 
-    async def test_merge_no_conclusions(self, service, mock_conv_repo, mock_llm, mock_msg_repo):
+    async def test_merge_no_conclusions(self, service, mock_conv_repo, mock_msg_repo, mock_msg_service):
         """Merging branches with no assistant messages uses fallback text."""
         target_id = uuid.uuid4()
         source_id = uuid.uuid4()
@@ -147,12 +147,13 @@ class TestMergeService:
         mock_conv_repo.get.side_effect = lambda cid: _make_conversation(id=cid)
         mock_msg_repo.get_by_conversation.return_value = [_make_message(role="user")]
 
-        result = await service.merge(target_id, [source_id])
+        await service.merge(target_id, [source_id])
 
-        assert "No conclusions" in result["conclusion"]
-        mock_llm.synthesize.assert_not_awaited()
+        call_args = mock_msg_service.send_message.call_args
+        content = call_args.kwargs.get("content", call_args.args[2] if len(call_args.args) > 2 else "")
+        assert "No conclusions" in content
 
-    async def test_merge_archive_option(self, service, mock_conv_repo, mock_msg_repo):
+    async def test_merge_archive_option(self, service, mock_conv_repo, mock_msg_repo, mock_msg_service):
         """Merge with keep_option='archive' updates source status to archived."""
         target_id = uuid.uuid4()
         source_id = uuid.uuid4()
@@ -164,7 +165,7 @@ class TestMergeService:
 
         mock_conv_repo.update.assert_awaited_with(source_id, status="archived")
 
-    async def test_merge_delete_option(self, service, mock_conv_repo, mock_msg_repo):
+    async def test_merge_delete_option(self, service, mock_conv_repo, mock_msg_repo, mock_msg_service):
         """Merge with keep_option='delete' deletes source branches."""
         target_id = uuid.uuid4()
         source_id = uuid.uuid4()

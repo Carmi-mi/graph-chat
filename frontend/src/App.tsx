@@ -8,6 +8,7 @@ import ConfirmDialog from './components/ConfirmDialog';
 import ErrorToast from './components/ErrorToast';
 import { useConversationStore, useUIStore } from './store';
 import { findNode } from './services/treeUtils';
+import { handleMessageDelivered } from './services/messageUtils';
 import * as conversationApi from './api/conversation';
 import * as agentApi from './api/agent';
 import type { MergeRequest } from './schemas/agent';
@@ -18,9 +19,11 @@ function App() {
     conversations,
     currentConversation,
     currentBranchId,
+    waitingBranchId,
     setConversations,
     setCurrentConversation,
     setCurrentBranchId,
+    setWaitingBranchId,
     setLoading,
     setError,
   } = useConversationStore();
@@ -117,18 +120,20 @@ function App() {
   // Merge handler
   const handleMerge = useCallback(
     async (request: MergeRequest) => {
+      if (!currentConversation) return;
+      setShowMergeModal(false);
+      setWaitingBranchId(request.targetId);
       try {
-        await agentApi.mergeConclusions(request);
-        setShowMergeModal(false);
-        if (currentConversation) {
-          const conv = await conversationApi.getConversation(currentConversation.id);
-          setCurrentConversation(conv);
-        }
+        const response = await agentApi.mergeConclusions(request);
+        setWaitingBranchId(null);
+        const newMsgs = [response.assistantMessage];
+        handleMessageDelivered(currentConversation.id, request.targetId, newMsgs);
       } catch (err) {
+        setWaitingBranchId(null);
         setError(err instanceof Error ? err.message : 'Failed to merge branches');
       }
     },
-    [currentConversation, setCurrentConversation, setError],
+    [currentConversation, setWaitingBranchId, setError],
   );
 
   // Delete conversation handler

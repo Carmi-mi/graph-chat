@@ -11,9 +11,9 @@ from app.schemas.agent import (
     BranchStatus,
     ExploreStatusResponse,
     MergeRequest,
-    MergeResponse,
     SuggestResponse,
 )
+from app.schemas.message import MessageResponse
 from app.services.agent_engine import AgentEngine
 from app.services.merge import MergeService
 
@@ -66,18 +66,17 @@ async def get_explore_status(
     )
 
 
-@router.post("/merge", response_model=MergeResponse)
+@router.post("/merge")
 async def merge_branches(
     body: MergeRequest,
     service: MergeService = Depends(get_merge_service),
-) -> MergeResponse:
+) -> dict:
     """Merge conclusions from multiple branches."""
     result = await service.merge(
         target_id=body.target_id,
         source_ids=body.source_ids,
         keep_option=body.keep_option,
     )
-    return MergeResponse(
-        conclusion=result["conclusion"],
-        mergeRecordId=result["merge_record_id"],
-    )
+    return {
+        "assistantMessage": MessageResponse.model_validate(result["assistant_message"]).model_dump(by_alias=True),
+    }

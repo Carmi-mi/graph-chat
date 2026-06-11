@@ -9,6 +9,7 @@ interface ConversationState {
   currentBranchId: string | null;
   conversationBranchMap: Record<string, string>; // conversationId → last branchId
   isLoading: boolean;
+  waitingBranchId: string | null;
   error: string | null;
 
   // Actions
@@ -18,6 +19,7 @@ interface ConversationState {
   updateBranchMessages: (branchId: string, messages: Message[]) => void;
   removeConversation: (id: string) => void;
   setLoading: (loading: boolean) => void;
+  setWaitingBranchId: (id: string | null) => void;
   setError: (error: string | null) => void;
   clearError: () => void;
 }
@@ -31,6 +33,7 @@ const useConversationStore = create<ConversationState>()(
       currentBranchId: null,
       conversationBranchMap: {},
       isLoading: false,
+      waitingBranchId: null,
       error: null,
 
       // Actions
@@ -89,6 +92,8 @@ const useConversationStore = create<ConversationState>()(
         }),
 
       setLoading: (isLoading) => set({ isLoading }),
+
+      setWaitingBranchId: (id) => set({ waitingBranchId: id }),
 
       setError: (error) => set({ error }),
 

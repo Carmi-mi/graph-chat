@@ -7,6 +7,7 @@ import AgentIndicator from '../AgentIndicator';
 import AnnotationPopup from '../Annotation/Popup';
 import { useConversationStore, useUIStore } from '../../store';
 import { useTextSelection } from '../../hooks/useTextSelection';
+import { handleMessageDelivered } from '../../services/messageUtils';
 import * as conversationApi from '../../api/conversation';
 import * as messageApi from '../../api/message';
 import * as agentApi from '../../api/agent';
@@ -22,6 +23,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversationId, onNavigate }) =
     currentConversation,
     currentBranchId,
     isLoading,
+    waitingBranchId: mergeWaitingBranchId,
     setCurrentConversation,
     setCurrentBranchId,
     setLoading,
@@ -216,42 +218,9 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversationId, onNavigate }) =
         });
         setWaitingBranchId(null);
 
-        // Append new messages to the branch in store (no extra getConversation call)
-        const appendMessages = (node: typeof currentConversation): typeof currentConversation => {
-          if (!node) return node;
-          if (node.id === sentFromBranchId) {
-            const newMsgs = [response.userMessage];
-            if (response.assistantMessage) newMsgs.push(response.assistantMessage);
-            return { ...node, messages: [...node.messages, ...newMsgs] };
-          }
-          return { ...node, children: node.children.map(appendMessages).filter((n): n is ConversationWithTree => n != null) };
-        };
-
-        const state = useConversationStore.getState();
-        const stillOnSameConversation = state.currentConversation?.id === sentFromConversationId;
-        const stillOnSameBranch = state.currentBranchId === sentFromBranchId;
-
-        if (stillOnSameConversation && stillOnSameBranch && state.currentConversation) {
-          // User is still on the same branch — append messages directly
-          useConversationStore.setState({
-            currentConversation: appendMessages(state.currentConversation),
-            currentBranchId: sentFromBranchId,
-          });
-        } else if (stillOnSameConversation) {
-          // Same conversation, different branch — refresh tree and mark dirty
-          conversationApi.getConversation(sentFromConversationId).then((conv) => {
-            useConversationStore.setState({ currentConversation: conv });
-          }).catch(() => {});
-          useUIStore.getState().addDirtyBranch(sentFromConversationId, sentFromBranchId);
-        } else {
-          // Different conversation — just mark dirty
-          useUIStore.getState().addDirtyBranch(sentFromConversationId, sentFromBranchId);
-        }
-
-        // Refresh sidebar conversation list
-        conversationApi.listConversations().then(
-          (res) => useConversationStore.getState().setConversations(res.items),
-        ).catch(() => {});
+        const newMsgs = [response.userMessage];
+        if (response.assistantMessage) newMsgs.push(response.assistantMessage);
+        handleMessageDelivered(sentFromConversationId, sentFromBranchId, newMsgs);
 
         // Poll for annotations on the specific assistant message just created
         const targetMsgId = response.assistantMessage?.id;
@@ -546,8 +515,8 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversationId, onNavigate }) =
       {/* Input area */}
       <InputArea
         onSend={handleSend}
-        isLoading={waitingBranchId === currentBranchId}
-        disabled={!currentBranchId || isLoading || waitingBranchId === currentBranchId}
+        isLoading={waitingBranchId === currentBranchId || mergeWaitingBranchId === currentBranchId}
+        disabled={!currentBranchId || isLoading || waitingBranchId === currentBranchId || mergeWaitingBranchId === currentBranchId}
       />
 
       {/* Annotation popup — edge-aware positioning computed in handleAnnotationClick */}

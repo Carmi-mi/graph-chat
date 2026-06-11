@@ -147,14 +147,14 @@ def get_agent_engine(
 
 
 def get_merge_service(
-    llm: ILLMProvider = Depends(get_llm_provider),
     conv_repo: ConversationRepository = Depends(get_conversation_repository),
     msg_repo: MessageRepository = Depends(get_message_repository),
+    msg_service: MessageService = Depends(get_message_service),
 ) -> MergeService:
     return MergeService(
-        llm_provider=llm,
         conversation_repository=conv_repo,
         message_repository=msg_repo,
+        message_service=msg_service,
     )
 
 

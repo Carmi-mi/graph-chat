@@ -1,11 +1,13 @@
 """Merge service: combine conclusions from multiple branches."""
 
+import json
 import uuid
 
 from app.core.exceptions import ConversationNotFound
+from app.models.merge_record import MergeRecord
 from app.repositories.conversation import ConversationRepository
 from app.repositories.message import MessageRepository
-from app.services.llm import ILLMProvider
+from app.services.message import MessageService
 
 
 class MergeService:
@@ -13,13 +15,13 @@ class MergeService:
 
     def __init__(
         self,
-        llm_provider: ILLMProvider,
         conversation_repository: ConversationRepository,
         message_repository: MessageRepository,
+        message_service: MessageService,
     ) -> None:
-        self.llm = llm_provider
         self.conversation_repo = conversation_repository
         self.message_repo = message_repository
+        self.message_service = message_service
 
     async def merge(
         self,
@@ -29,14 +31,10 @@ class MergeService:
     ) -> dict:
         """Merge conclusions from source branches into the target conversation.
 
-        Steps:
         1. Validate all conversations exist.
-        2. Collect the last assistant message from each source.
-        3. Ask the LLM to synthesize a combined conclusion.
-        4. Append the conclusion as a message in the target conversation.
-        5. Optionally archive/delete source branches based on keep_option.
-
-        Returns a dict with 'conclusion' and 'merge_record_id'.
+        2. Collect context_summary + last assistant message from each source.
+        3. Delegate to MessageService.send_message (LLM synthesizes in reply).
+        4. Persist merge record, apply keep_option.
         """
         # Validate target
         target = await self.conversation_repo.get(target_id)
@@ -58,7 +56,6 @@ class MergeService:
             messages = await self.message_repo.get_by_conversation(sid)
             assistant_msgs = [m for m in messages if m.role == "assistant"]
             parts: list[str] = []
-            # Annotate relationship: if parent is also a source, note it
             if source.parent_id and source.parent_id in source_set:
                 parent_src = sources[source.parent_id]
                 parts.append(f"(forked from: {parent_src.name})")
@@ -70,27 +67,30 @@ class MergeService:
                 conclusions.append("\n".join(parts))
 
         if not conclusions:
-            conclusion_text = "No conclusions to merge."
+            merge_content = "No conclusions to merge."
         else:
-            conclusion_text = await self.llm.synthesize(conclusions)
+            branch_text = "\n\n".join(
+                f"Branch {i + 1}:\n{c}" for i, c in enumerate(conclusions)
+            )
+            merge_content = (
+                "以下是多个探索分支的结论，请综合分析后给出一份完整的合并结论：\n\n"
+                + branch_text
+            )
 
-        # Insert a system message into the target branch with the merge conclusion
-        await self.message_repo.create(
+        # Delegate to MessageService — LLM synthesizes in _generate_reply
+        _, assistant_msg = await self.message_service.send_message(
             conversation_id=target_id,
-            role="system",
-            content=f"## Merged Conclusion\n\n{conclusion_text}",
-            node_type="merge",
+            role="user",
+            content=merge_content,
+            skip_annotations=True,
+            skip_user_message=True,
         )
 
         # Persist the merge record
-        import json
-
-        from app.models.merge_record import MergeRecord
-
         record = MergeRecord(
             target_id=target_id,
             source_ids=json.dumps([str(sid) for sid in source_ids]),
-            conclusion=conclusion_text,
+            conclusion=assistant_msg.content,
             keep_option=keep_option,
         )
         self.conversation_repo.session.add(record)
@@ -106,6 +106,5 @@ class MergeService:
                 await self.conversation_repo.delete(sid)
 
         return {
-            "conclusion": conclusion_text,
-            "merge_record_id": record.id,
+            "assistant_message": assistant_msg,
         }
