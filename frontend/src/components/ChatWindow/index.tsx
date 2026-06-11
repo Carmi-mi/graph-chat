@@ -57,13 +57,13 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversationId, onNavigate }) =
   const [waitingBranchId, setWaitingBranchId] = useState<string | null>(null);
   const [forkingMessageId, setForkingMessageId] = useState<string | null>(null);
 
-  // Cleanup poll intervals on unmount
+  // Cleanup poll intervals on unmount or when conversation changes
   useEffect(() => {
     return () => {
-      if (pollRef.current) clearInterval(pollRef.current);
-      if (pollTimeoutRef.current) clearTimeout(pollTimeoutRef.current);
+      if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
+      if (pollTimeoutRef.current) { clearTimeout(pollTimeoutRef.current); pollTimeoutRef.current = null; }
     };
-  }, []);
+  }, [conversationId]);
 
   // Load conversation on mount or when conversationId changes
   useEffect(() => {
@@ -110,10 +110,13 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversationId, onNavigate }) =
         if (allDone) {
           exploringBranches.forEach((id) => removeExploringBranch(id));
           const conv = await conversationApi.getConversation(conversationId);
-          useConversationStore.setState({
-            currentConversation: conv,
-            currentBranchId: currentBranchId,
-          });
+          const s = useConversationStore.getState();
+          if (s.currentConversation?.id === conversationId) {
+            useConversationStore.setState({
+              currentConversation: conv,
+              currentBranchId: currentBranchId,
+            });
+          }
           clearInterval(interval);
         }
       } catch {
@@ -378,10 +381,14 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversationId, onNavigate }) =
           setWaitingBranchId(null);
           const updated = await conversationApi.getConversation(conversationId);
           const state = useConversationStore.getState();
-          useConversationStore.setState({
-            currentConversation: updated,
-            currentBranchId: state.currentBranchId,
-          });
+          if (state.currentConversation?.id === conversationId) {
+            useConversationStore.setState({
+              currentConversation: updated,
+              currentBranchId: state.currentBranchId,
+            });
+          } else {
+            useUIStore.getState().addDirtyBranch(conversationId, child.id);
+          }
 
           // Poll for annotations on the new assistant message
           const targetMsgId = resp.assistantMessage?.id;
@@ -410,6 +417,8 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversationId, onNavigate }) =
                     const elapsed = ((Date.now() - pollStart) / 1000).toFixed(0);
                     setAnnotationToast(`成功生成标注，用时${elapsed}s`);
                     setTimeout(() => setAnnotationToast(null), 5000);
+                  } else {
+                    useUIStore.getState().addDirtyBranch(conversationId, child.id);
                   }
                   // Stop polling regardless
                   if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
