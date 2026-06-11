@@ -253,11 +253,6 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversationId, onNavigate }) =
 
           const pollStart = Date.now();
           pollRef.current = setInterval(() => {
-            const s = useConversationStore.getState();
-            if (s.currentConversation?.id !== sentFromConversationId || s.currentBranchId !== sentFromBranchId) {
-              if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
-              return;
-            }
             conversationApi.getConversation(sentFromConversationId).then((conv) => {
               // Find the specific message by ID
               const findMsg = (node: typeof conv): typeof conv | null => {
@@ -272,12 +267,17 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversationId, onNavigate }) =
               const targetMsg = branch?.messages.find(m => m.id === targetMsgId);
               const hasAnnotations = targetMsg?.annotations && targetMsg.annotations.length > 0;
               if (hasAnnotations) {
-                useConversationStore.setState({ currentConversation: conv });
+                // Only update store if user is still viewing this conversation
+                const s = useConversationStore.getState();
+                if (s.currentConversation?.id === sentFromConversationId) {
+                  useConversationStore.setState({ currentConversation: conv });
+                  const elapsed = ((Date.now() - pollStart) / 1000).toFixed(0);
+                  setAnnotationToast(`成功生成标注，用时${elapsed}s`);
+                  setTimeout(() => setAnnotationToast(null), 5000);
+                }
+                // Stop polling regardless — annotations are ready on the server
                 if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
                 if (pollTimeoutRef.current) { clearTimeout(pollTimeoutRef.current); pollTimeoutRef.current = null; }
-                const elapsed = ((Date.now() - pollStart) / 1000).toFixed(0);
-                setAnnotationToast(`成功生成标注，用时${elapsed}s`);
-                setTimeout(() => setAnnotationToast(null), 5000);
               }
             }).catch(() => {});
           }, 5000);
@@ -403,12 +403,17 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversationId, onNavigate }) =
                 const branch = findMsg(conv);
                 const targetMsg = branch?.messages.find(m => m.id === targetMsgId);
                 if (targetMsg?.annotations && targetMsg.annotations.length > 0) {
-                  useConversationStore.setState({ currentConversation: conv });
+                  // Only update store if user is still viewing this conversation
+                  const s = useConversationStore.getState();
+                  if (s.currentConversation?.id === conversationId) {
+                    useConversationStore.setState({ currentConversation: conv });
+                    const elapsed = ((Date.now() - pollStart) / 1000).toFixed(0);
+                    setAnnotationToast(`成功生成标注，用时${elapsed}s`);
+                    setTimeout(() => setAnnotationToast(null), 5000);
+                  }
+                  // Stop polling regardless
                   if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
                   if (pollTimeoutRef.current) { clearTimeout(pollTimeoutRef.current); pollTimeoutRef.current = null; }
-                  const elapsed = ((Date.now() - pollStart) / 1000).toFixed(0);
-                  setAnnotationToast(`成功生成标注，用时${elapsed}s`);
-                  setTimeout(() => setAnnotationToast(null), 5000);
                 }
               }).catch(() => {});
             }, 5000);

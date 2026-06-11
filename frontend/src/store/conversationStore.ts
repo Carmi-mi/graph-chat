@@ -7,6 +7,7 @@ interface ConversationState {
   conversations: Conversation[];
   currentConversation: ConversationWithTree | null;
   currentBranchId: string | null;
+  conversationBranchMap: Record<string, string>; // conversationId → last branchId
   isLoading: boolean;
   error: string | null;
 
@@ -28,6 +29,7 @@ const useConversationStore = create<ConversationState>()(
       conversations: [],
       currentConversation: null,
       currentBranchId: null,
+      conversationBranchMap: {},
       isLoading: false,
       error: null,
 
@@ -35,12 +37,31 @@ const useConversationStore = create<ConversationState>()(
       setConversations: (conversations) => set({ conversations }),
 
       setCurrentConversation: (conversation) =>
-        set({
-          currentConversation: conversation,
-          currentBranchId: conversation?.id ?? null,
+        set((state) => {
+          const map = { ...state.conversationBranchMap };
+          // Save current branch for the current conversation
+          if (state.currentConversation && state.currentBranchId) {
+            map[state.currentConversation.id] = state.currentBranchId;
+          }
+          // Restore saved branch for the new conversation, or default to root
+          const newBranchId = conversation
+            ? (map[conversation.id] ?? conversation.id)
+            : null;
+          return {
+            currentConversation: conversation,
+            currentBranchId: newBranchId,
+            conversationBranchMap: map,
+          };
         }),
 
-      setCurrentBranchId: (id) => set({ currentBranchId: id }),
+      setCurrentBranchId: (id) =>
+        set((state) => {
+          const map = { ...state.conversationBranchMap };
+          if (state.currentConversation && id) {
+            map[state.currentConversation.id] = id;
+          }
+          return { currentBranchId: id, conversationBranchMap: map };
+        }),
 
       updateBranchMessages: (branchId, messages) =>
         set((state) => {
@@ -79,6 +100,7 @@ const useConversationStore = create<ConversationState>()(
         conversations: state.conversations,
         currentConversation: state.currentConversation,
         currentBranchId: state.currentBranchId,
+        conversationBranchMap: state.conversationBranchMap,
       }),
     },
   ),

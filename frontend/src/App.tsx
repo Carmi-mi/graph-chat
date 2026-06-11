@@ -51,27 +51,20 @@ function App() {
     async (id: string) => {
       setLoading(true);
       try {
-        // Remember which branch the user was on before switching
-        const prevConvId = useConversationStore.getState().currentConversation?.id;
-        const prevBranchId = useConversationStore.getState().currentBranchId;
-        const wasOnSameConversation = prevConvId === id;
-
         const conv = await conversationApi.getConversation(id);
         setCurrentConversation(conv);
-
-        // Restore sub-branch position if returning to the same conversation
-        if (wasOnSameConversation && prevBranchId && prevBranchId !== id) {
-          setCurrentBranchId(prevBranchId);
+        // Clear dirty for current branch — store restores the saved branch position
+        const currentBranch = useConversationStore.getState().currentBranchId;
+        if (currentBranch) {
+          removeDirtyBranch(id, currentBranch);
         }
-        // Clear dirty for root branch — user lands on it when selecting a conversation
-        removeDirtyBranch(id, id);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load conversation');
       } finally {
         setLoading(false);
       }
     },
-    [setCurrentConversation, setCurrentBranchId, setLoading, setError, removeDirtyBranch],
+    [setCurrentConversation, setLoading, setError, removeDirtyBranch],
   );
 
   // Create a new conversation with a default name, then select it
