@@ -31,6 +31,14 @@ export function getPathToNode(tree: ConversationWithTree, id: string): Conversat
   return [];
 }
 
+export function flattenSubtree(node: ConversationWithTree, depth = 0): FlatNode[] {
+  const items: FlatNode[] = [{ node, depth }];
+  for (const child of node.children) {
+    items.push(...flattenSubtree(child, depth + 1));
+  }
+  return items;
+}
+
 export function countBranches(tree: ConversationWithTree): number {
   let count = tree.children.length > 0 ? 1 : 0;
   for (const child of tree.children) {

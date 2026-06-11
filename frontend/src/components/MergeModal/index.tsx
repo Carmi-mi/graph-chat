@@ -1,29 +1,25 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import { X, GitMerge } from 'lucide-react';
 import type { ConversationWithTree } from '../../schemas';
 import type { MergeRequest } from '../../schemas/agent';
+import { findNode, flattenSubtree } from '../../services/treeUtils';
 
 interface MergeModalProps {
   tree: ConversationWithTree;
+  currentBranchId: string;
   onMerge: (request: MergeRequest) => void;
   onClose: () => void;
 }
 
-// Flatten tree into a list for selection
-function flattenTree(node: ConversationWithTree, depth = 0): Array<{ node: ConversationWithTree; depth: number }> {
-  const items = [{ node, depth }];
-  for (const child of node.children) {
-    items.push(...flattenTree(child, depth + 1));
-  }
-  return items;
-}
-
-const MergeModal: React.FC<MergeModalProps> = ({ tree, onMerge, onClose }) => {
-  const [targetId, setTargetId] = useState(tree.id);
+const MergeModal: React.FC<MergeModalProps> = ({ tree, currentBranchId, onMerge, onClose }) => {
   const [sourceIds, setSourceIds] = useState<string[]>([]);
   const [keepOption, setKeepOption] = useState<MergeRequest['keepOption']>('keep');
 
-  const allNodes = flattenTree(tree);
+  const currentBranch = useMemo(() => findNode(tree, currentBranchId), [tree, currentBranchId]);
+  const descendants = useMemo(
+    () => (currentBranch ? currentBranch.children.flatMap((c) => flattenSubtree(c)) : []),
+    [currentBranch],
+  );
 
   const toggleSource = useCallback((id: string) => {
     setSourceIds((prev) =>
@@ -34,11 +30,11 @@ const MergeModal: React.FC<MergeModalProps> = ({ tree, onMerge, onClose }) => {
   const handleSubmit = useCallback(() => {
     if (sourceIds.length === 0) return;
     onMerge({
-      targetId,
+      targetId: currentBranchId,
       sourceIds,
       keepOption,
     });
-  }, [targetId, sourceIds, keepOption, onMerge]);
+  }, [currentBranchId, sourceIds, keepOption, onMerge]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
@@ -59,54 +55,27 @@ const MergeModal: React.FC<MergeModalProps> = ({ tree, onMerge, onClose }) => {
 
         {/* Body */}
         <div className="px-5 py-4 space-y-5 max-h-[60vh] overflow-y-auto">
-          {/* Target selection */}
+          {/* Source selection */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Target branch (merge into)
+              Select branches to merge
             </label>
-            <div className="space-y-1 max-h-32 overflow-y-auto rounded-lg border border-gray-200 p-2">
-              {allNodes.map(({ node, depth }) => (
+            <div className="space-y-1 max-h-48 overflow-y-auto rounded-lg border border-gray-200 p-2">
+              {descendants.map(({ node, depth }) => (
                 <label
                   key={node.id}
                   className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-gray-50 cursor-pointer"
                   style={{ paddingLeft: `${depth * 16 + 8}px` }}
                 >
                   <input
-                    type="radio"
-                    name="target"
-                    checked={targetId === node.id}
-                    onChange={() => setTargetId(node.id)}
-                    className="text-[#667eea] focus:ring-[#667eea]"
+                    type="checkbox"
+                    checked={sourceIds.includes(node.id)}
+                    onChange={() => toggleSource(node.id)}
+                    className="text-[#667eea] focus:ring-[#667eea] rounded"
                   />
                   <span className="text-sm text-gray-700 truncate">{node.name}</span>
                 </label>
               ))}
-            </div>
-          </div>
-
-          {/* Source selection */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Source branches (merge from)
-            </label>
-            <div className="space-y-1 max-h-32 overflow-y-auto rounded-lg border border-gray-200 p-2">
-              {allNodes
-                .filter(({ node }) => node.id !== targetId)
-                .map(({ node, depth }) => (
-                  <label
-                    key={node.id}
-                    className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-gray-50 cursor-pointer"
-                    style={{ paddingLeft: `${depth * 16 + 8}px` }}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={sourceIds.includes(node.id)}
-                      onChange={() => toggleSource(node.id)}
-                      className="text-[#667eea] focus:ring-[#667eea] rounded"
-                    />
-                    <span className="text-sm text-gray-700 truncate">{node.name}</span>
-                  </label>
-                ))}
             </div>
           </div>
 

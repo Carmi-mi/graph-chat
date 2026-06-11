@@ -7,6 +7,7 @@ import MergeModal from './components/MergeModal';
 import ConfirmDialog from './components/ConfirmDialog';
 import ErrorToast from './components/ErrorToast';
 import { useConversationStore, useUIStore } from './store';
+import { findNode } from './services/treeUtils';
 import * as conversationApi from './api/conversation';
 import * as agentApi from './api/agent';
 import type { MergeRequest } from './schemas/agent';
@@ -171,6 +172,10 @@ function App() {
   );
 
   const hasChildren = currentConversation != null && currentConversation.children.length > 0;
+  const currentBranch = currentConversation && currentBranchId
+    ? findNode(currentConversation, currentBranchId)
+    : null;
+  const canMerge = currentBranch != null && currentBranch.children.length > 0;
 
   return (
     <div className="flex h-screen w-full bg-white overflow-hidden">
@@ -220,7 +225,7 @@ function App() {
       )}
 
       {/* Floating merge button */}
-      {hasChildren && (
+      {canMerge && (
         <button
           onClick={() => setShowMergeModal(true)}
           className="fixed bottom-6 right-6 z-30 flex items-center gap-2 px-4 py-3 rounded-full bg-gradient-to-r from-[#667eea] to-[#764ba2] text-white text-sm font-medium shadow-lg hover:shadow-xl hover:opacity-90 transition-all"
@@ -232,9 +237,10 @@ function App() {
       )}
 
       {/* Merge modal */}
-      {showMergeModal && currentConversation && (
+      {showMergeModal && currentConversation && currentBranchId && (
         <MergeModal
           tree={currentConversation}
+          currentBranchId={currentBranchId}
           onMerge={handleMerge}
           onClose={() => setShowMergeModal(false)}
         />
