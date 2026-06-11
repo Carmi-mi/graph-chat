@@ -9,10 +9,11 @@ from app.core.exceptions import ConversationNotFound
 from app.services.merge import MergeService
 
 
-def _make_conversation(id=None, name="Branch"):
+def _make_conversation(id=None, name="Branch", context_summary=None):
     conv = MagicMock()
     conv.id = id or uuid.uuid4()
     conv.name = name
+    conv.context_summary = context_summary
     return conv
 
 
@@ -70,6 +71,27 @@ class TestMergeService:
         assert "merge_record_id" in result
         assert result["conclusion"] == "Synthesized conclusion from all branches."
         mock_llm.synthesize.assert_awaited_once()
+
+    async def test_merge_includes_context_summary(self, service, mock_conv_repo, mock_llm, mock_msg_repo):
+        """Merge passes context_summary + last message to LLM."""
+        target_id = uuid.uuid4()
+        source_id = uuid.uuid4()
+        target = _make_conversation(id=target_id)
+        source = _make_conversation(id=source_id, context_summary="Discussion about AI")
+
+        mock_conv_repo.get.side_effect = lambda cid: {
+            target_id: target,
+            source_id: source,
+        }.get(cid)
+
+        mock_msg_repo.get_by_conversation.return_value = [_make_message(content="Final answer")]
+
+        await service.merge(target_id, [source_id], "keep")
+
+        call_args = mock_llm.synthesize.call_args[0][0]
+        assert len(call_args) == 1
+        assert "Discussion about AI" in call_args[0]
+        assert "Final answer" in call_args[0]
 
     async def test_merge_target_not_found(self, service, mock_conv_repo):
         """Merging with non-existent target raises ConversationNotFound."""

@@ -51,8 +51,13 @@ class MergeService:
                 raise ConversationNotFound(message=f"Source conversation {sid} not found")
             messages = await self.message_repo.get_by_conversation(sid)
             assistant_msgs = [m for m in messages if m.role == "assistant"]
+            parts: list[str] = []
+            if source.context_summary:
+                parts.append(f"Summary: {source.context_summary}")
             if assistant_msgs:
-                conclusions.append(assistant_msgs[-1].content)
+                parts.append(f"Last response: {assistant_msgs[-1].content}")
+            if parts:
+                conclusions.append("\n".join(parts))
 
         if not conclusions:
             conclusion_text = "No conclusions to merge."
