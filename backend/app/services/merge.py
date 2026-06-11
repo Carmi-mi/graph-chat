@@ -44,14 +44,24 @@ class MergeService:
             raise ConversationNotFound(message=f"Target conversation {target_id} not found")
 
         # Validate and collect conclusions from sources
-        conclusions: list[str] = []
+        sources: dict[uuid.UUID, object] = {}
         for sid in source_ids:
             source = await self.conversation_repo.get(sid)
             if source is None:
                 raise ConversationNotFound(message=f"Source conversation {sid} not found")
+            sources[sid] = source
+
+        source_set = set(source_ids)
+        conclusions: list[str] = []
+        for sid in source_ids:
+            source = sources[sid]
             messages = await self.message_repo.get_by_conversation(sid)
             assistant_msgs = [m for m in messages if m.role == "assistant"]
             parts: list[str] = []
+            # Annotate relationship: if parent is also a source, note it
+            if source.parent_id and source.parent_id in source_set:
+                parent_src = sources[source.parent_id]
+                parts.append(f"(forked from: {parent_src.name})")
             if source.context_summary:
                 parts.append(f"Summary: {source.context_summary}")
             if assistant_msgs:

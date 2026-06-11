@@ -261,8 +261,10 @@ class OpenAIProvider(ILLMProvider):
             {
                 "role": "system",
                 "content": (
-                    "You are given multiple conclusions from parallel exploration "
-                    "branches. Synthesize them into a single coherent conclusion."
+                    "You are given multiple conclusions from exploration branches "
+                    "that may have hierarchical relationships (some branches are "
+                    "forked from others). Synthesize them into a single coherent "
+                    "conclusion, respecting the dependency chain."
                 ),
             },
             {

@@ -93,6 +93,34 @@ class TestMergeService:
         assert "Discussion about AI" in call_args[0]
         assert "Final answer" in call_args[0]
 
+    async def test_merge_annotates_branch_relationships(self, service, mock_conv_repo, mock_llm, mock_msg_repo):
+        """Merge annotates parent-child relationships between source branches."""
+        target_id = uuid.uuid4()
+        parent_id = uuid.uuid4()
+        child_id = uuid.uuid4()
+
+        target = _make_conversation(id=target_id)
+        parent = _make_conversation(id=parent_id, name="Parent Branch")
+        child = _make_conversation(id=child_id, name="Child Branch")
+        child.parent_id = parent_id
+
+        mock_conv_repo.get.side_effect = lambda cid: {
+            target_id: target,
+            parent_id: parent,
+            child_id: child,
+        }.get(cid)
+
+        mock_msg_repo.get_by_conversation.return_value = [_make_message(content="Answer")]
+
+        await service.merge(target_id, [parent_id, child_id], "keep")
+
+        call_args = mock_llm.synthesize.call_args[0][0]
+        assert len(call_args) == 2
+        # Child branch should have relationship annotation
+        assert "forked from: Parent Branch" in call_args[1]
+        # Parent branch should not have annotation
+        assert "forked from" not in call_args[0]
+
     async def test_merge_target_not_found(self, service, mock_conv_repo):
         """Merging with non-existent target raises ConversationNotFound."""
         mock_conv_repo.get.return_value = None
