@@ -153,18 +153,6 @@ class TestMergeService:
         content = call_args.kwargs.get("content", call_args.args[2] if len(call_args.args) > 2 else "")
         assert "No conclusions" in content
 
-    async def test_merge_archive_option(self, service, mock_conv_repo, mock_msg_repo, mock_msg_service):
-        """Merge with keep_option='archive' updates source status to archived."""
-        target_id = uuid.uuid4()
-        source_id = uuid.uuid4()
-
-        mock_conv_repo.get.side_effect = lambda cid: _make_conversation(id=cid)
-        mock_msg_repo.get_by_conversation.return_value = [_make_message()]
-
-        await service.merge(target_id, [source_id], "archive")
-
-        mock_conv_repo.update.assert_awaited_with(source_id, status="archived")
-
     async def test_merge_delete_option(self, service, mock_conv_repo, mock_msg_repo, mock_msg_service):
         """Merge with keep_option='delete' deletes source branches."""
         target_id = uuid.uuid4()

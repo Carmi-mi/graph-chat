@@ -33,7 +33,7 @@ export interface ExploreStatusResponse {
 export interface MergeRequest {
   targetId: string;
   sourceIds: string[];
-  keepOption: 'keep' | 'archive' | 'delete';
+  keepOption: 'keep' | 'delete';
 }
 
 export interface MergeResponse {

@@ -90,7 +90,6 @@ const MergeModal: React.FC<MergeModalProps> = ({ tree, currentBranchId, onMerge,
               className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#667eea]/30 focus:border-[#667eea]"
             >
               <option value="keep">Keep source branches</option>
-              <option value="archive">Archive source branches</option>
               <option value="delete">Delete source branches</option>
             </select>
           </div>

@@ -47,7 +47,7 @@ class MergeRequest(BaseModel):
 
     target_id: UUID = Field(..., alias="targetId")
     source_ids: list[UUID] = Field(..., alias="sourceIds", min_length=1)
-    keep_option: str = Field("keep", alias="keepOption", pattern="^(keep|archive|delete)$")
+    keep_option: str = Field("keep", alias="keepOption", pattern="^(keep|delete)$")
 
 
 class MergeResponse(BaseModel):

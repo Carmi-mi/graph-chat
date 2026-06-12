@@ -98,10 +98,7 @@ class MergeService:
         await self.conversation_repo.session.refresh(record)
 
         # Apply keep_option to source branches
-        if keep_option == "archive":
-            for sid in source_ids:
-                await self.conversation_repo.update(sid, status="archived")
-        elif keep_option == "delete":
+        if keep_option == "delete":
             for sid in source_ids:
                 await self.conversation_repo.delete(sid)
 
