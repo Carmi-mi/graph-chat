@@ -85,13 +85,12 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversationId, onNavigate }) =
 
     const pollStart = Date.now();
     const interval = setInterval(() => {
-      annotationApi.getMessageAnnotations(targetMsgId).then(async (annotations) => {
+      annotationApi.getMessageAnnotations(targetMsgId).then((annotations) => {
         if (annotations.length > 0) {
           clearAnnotationPoll(targetMsgId);
-          const conv = await conversationApi.getConversation(pollConversationId);
           const s = useConversationStore.getState();
           if (s.currentConversation?.id === pollConversationId && s.currentBranchId === pollBranchId) {
-            setCurrentConversation(conv);
+            s.updateMessageAnnotations(targetMsgId, annotations);
             const elapsed = ((Date.now() - pollStart) / 1000).toFixed(0);
             setAnnotationToast(`成功生成标注，用时${elapsed}s`);
             setTimeout(() => setAnnotationToast(null), 5000);
@@ -107,7 +106,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversationId, onNavigate }) =
     }, 180000);
 
     pollMapRef.current.set(targetMsgId, { interval, timeout, conversationId: pollConversationId, branchId: pollBranchId });
-  }, [clearAnnotationPoll, setCurrentConversation]);
+  }, [clearAnnotationPoll]);
 
   // Load conversation on mount or when conversationId changes
   useEffect(() => {
@@ -190,9 +189,11 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversationId, onNavigate }) =
       });
       clearSelection();
       setForkingMessageId(null);
-      if (conversationId) {
-        const conv = await conversationApi.getConversation(conversationId);
-        setCurrentConversation(conv);
+      if (child.parentId) {
+        const s = useConversationStore.getState();
+        if (s.currentConversation?.id === conversationId) {
+          s.insertChildNode(child.parentId, { ...child, messages: [], children: [] });
+        }
         setCurrentBranchId(child.id);
       }
     } catch (err) {
@@ -288,12 +289,10 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversationId, onNavigate }) =
         });
         addExploringBranch(result.taskId);
         setSuggestions([]);
-        // Refresh conversation tree, preserve current branch
-        if (conversationId) {
-          const conv = await conversationApi.getConversation(conversationId);
-          setCurrentConversation(conv);
-          setCurrentBranchId(currentBranchId);
-        }
+        // Refresh sidebar to reflect exploring status
+        conversationApi.listConversations().then(
+          (res) => useConversationStore.getState().setConversations(res.items),
+        ).catch(() => {});
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to start exploration');
       }
@@ -337,9 +336,13 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversationId, onNavigate }) =
         // Mark new branch as waiting so input shows spinner
         setWaitingBranchId(child.id);
 
-        // Refresh tree and switch to the new branch
-        const conv = await conversationApi.getConversation(conversationId);
-        setCurrentConversation(conv);
+        // Insert child node locally and switch to it
+        if (child.parentId) {
+          const s = useConversationStore.getState();
+          if (s.currentConversation?.id === conversationId) {
+            s.insertChildNode(child.parentId, { ...child, messages: [], children: [] });
+          }
+        }
         setCurrentBranchId(child.id);
 
         // Auto-send message in background to trigger LLM reply + annotations
@@ -352,19 +355,9 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversationId, onNavigate }) =
           content: `关于「${selectedAnnotation.text}」，我想深入了解：${fullSuggestion}`,
         }).then(async (resp) => {
           setWaitingBranchId(null);
-          const updated = await conversationApi.getConversation(conversationId);
-          const state = useConversationStore.getState();
-          if (state.currentConversation?.id === conversationId && state.currentBranchId === child.id) {
-            // Same conversation and same branch — update tree directly
-            setCurrentConversation(updated);
-          } else if (state.currentConversation?.id === conversationId) {
-            // Same conversation, different branch — refresh tree and mark dirty
-            setCurrentConversation(updated);
-            useUIStore.getState().addDirtyBranch(conversationId, child.id);
-          } else {
-            // Different conversation — just mark dirty
-            useUIStore.getState().addDirtyBranch(conversationId, child.id);
-          }
+          const newMsgs = [resp.userMessage];
+          if (resp.assistantMessage) newMsgs.push(resp.assistantMessage);
+          handleMessageDelivered(conversationId, child.id, newMsgs);
 
           // Poll for annotations on the new assistant message
           const targetMsgId = resp.assistantMessage?.id;

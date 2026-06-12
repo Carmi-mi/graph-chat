@@ -50,13 +50,12 @@ function App() {
     loadConversations();
   }, [setConversations, setLoading, setError]);
 
-  // Select a conversation: use cache if available and not dirty, otherwise fetch
+  // Select a conversation: use cache if available, otherwise fetch
   const handleSelectConversation = useCallback(
     async (id: string) => {
-      const hasDirty = (dirtyBranches[id] ?? []).length > 0;
       const cached = useConversationStore.getState().conversationCache[id];
 
-      if (cached && !hasDirty) {
+      if (cached) {
         setCurrentConversation(cached);
         const currentBranch = useConversationStore.getState().currentBranchId;
         if (currentBranch) {
@@ -79,7 +78,7 @@ function App() {
         setLoading(false);
       }
     },
-    [dirtyBranches, setCurrentConversation, setLoading, setError, removeDirtyBranch],
+    [setCurrentConversation, setLoading, setError, removeDirtyBranch],
   );
 
   // Create a new conversation with a default name, then select it
@@ -100,15 +99,20 @@ function App() {
       if (!currentConversation) return;
       const isDirty = (dirtyBranches[currentConversation.id] ?? []).includes(id);
       if (isDirty) {
-        // Dirty branch — refresh tree from backend, then switch
-        setLoading(true);
-        try {
-          const conv = await conversationApi.getConversation(currentConversation.id);
-          setCurrentConversation(conv);
-        } catch (err) {
-          setError(err instanceof Error ? err.message : 'Failed to refresh conversation');
-        } finally {
-          setLoading(false);
+        // Dirty branch — try cache first, fetch only if cache is missing
+        const cached = useConversationStore.getState().conversationCache[currentConversation.id];
+        if (cached) {
+          setCurrentConversation(cached);
+        } else {
+          setLoading(true);
+          try {
+            const conv = await conversationApi.getConversation(currentConversation.id);
+            setCurrentConversation(conv);
+          } catch (err) {
+            setError(err instanceof Error ? err.message : 'Failed to refresh conversation');
+          } finally {
+            setLoading(false);
+          }
         }
       }
       setCurrentBranchId(id);

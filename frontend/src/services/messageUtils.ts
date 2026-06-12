@@ -38,12 +38,16 @@ export function handleMessageDelivered(
       currentConversation: appendMessagesToTree(state.currentConversation, branchId, messages),
       currentBranchId: branchId,
     });
-  } else if (stillOnSameConversation) {
-    conversationApi.getConversation(conversationId).then((conv) => {
-      useConversationStore.setState({ currentConversation: conv });
-    }).catch(() => {});
+  } else if (stillOnSameConversation && state.currentConversation) {
+    useConversationStore.setState({
+      currentConversation: appendMessagesToTree(state.currentConversation, branchId, messages),
+    });
     useUIStore.getState().addDirtyBranch(conversationId, branchId);
   } else {
+    useConversationStore.getState().updateCachedConversation(
+      conversationId,
+      (conv) => appendMessagesToTree(conv, branchId, messages),
+    );
     useUIStore.getState().addDirtyBranch(conversationId, branchId);
   }
 

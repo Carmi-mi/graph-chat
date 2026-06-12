@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { Conversation, ConversationWithTree, Message } from '../schemas';
+import type { Conversation, ConversationWithTree, Message, Annotation } from '../schemas';
 
 interface ConversationState {
   // State
@@ -18,6 +18,9 @@ interface ConversationState {
   setCurrentConversation: (conversation: ConversationWithTree | null) => void;
   setCurrentBranchId: (id: string | null) => void;
   updateBranchMessages: (branchId: string, messages: Message[]) => void;
+  insertChildNode: (parentId: string, child: ConversationWithTree) => void;
+  updateMessageAnnotations: (messageId: string, annotations: Annotation[]) => void;
+  updateCachedConversation: (conversationId: string, updater: (conv: ConversationWithTree) => ConversationWithTree) => void;
   removeConversation: (id: string) => void;
   setLoading: (loading: boolean) => void;
   setWaitingBranchId: (id: string | null) => void;
@@ -86,6 +89,54 @@ const useConversationStore = create<ConversationState>()(
           };
 
           return { currentConversation: updateNode(state.currentConversation) };
+        }),
+
+      insertChildNode: (parentId, child) =>
+        set((state) => {
+          if (!state.currentConversation) return state;
+
+          const insert = (node: ConversationWithTree): ConversationWithTree => {
+            if (node.id === parentId) {
+              return { ...node, children: [...node.children, child] };
+            }
+            return { ...node, children: node.children.map(insert) };
+          };
+
+          const updated = insert(state.currentConversation);
+          const cache = { ...state.conversationCache };
+          cache[updated.id] = updated;
+          return { currentConversation: updated, conversationCache: cache };
+        }),
+
+      updateMessageAnnotations: (messageId, annotations) =>
+        set((state) => {
+          if (!state.currentConversation) return state;
+
+          const update = (node: ConversationWithTree): ConversationWithTree => {
+            const updatedMessages = node.messages.map((m) =>
+              m.id === messageId ? { ...m, annotations } : m,
+            );
+            const updatedChildren = node.children.map(update);
+            if (updatedMessages !== node.messages || updatedChildren !== node.children) {
+              return { ...node, messages: updatedMessages, children: updatedChildren };
+            }
+            return node;
+          };
+
+          return { currentConversation: update(state.currentConversation) };
+        }),
+
+      updateCachedConversation: (conversationId, updater) =>
+        set((state) => {
+          const cached = state.conversationCache[conversationId];
+          if (!cached) return state;
+          const updated = updater(cached);
+          const cache = { ...state.conversationCache, [conversationId]: updated };
+          // Also update currentConversation if it's the same one
+          const current = state.currentConversation?.id === conversationId
+            ? updated
+            : state.currentConversation;
+          return { conversationCache: cache, currentConversation: current };
         }),
 
       removeConversation: (id) =>
