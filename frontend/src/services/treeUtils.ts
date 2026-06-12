@@ -55,3 +55,13 @@ export function getLeafNodes(tree: ConversationWithTree): ConversationWithTree[]
   }
   return leaves;
 }
+
+export function removeNode(tree: ConversationWithTree, id: string): ConversationWithTree | null {
+  if (tree.id === id) return null;
+  return {
+    ...tree,
+    children: tree.children
+      .map((child) => removeNode(child, id))
+      .filter((n): n is ConversationWithTree => n !== null),
+  };
+}

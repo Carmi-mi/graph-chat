@@ -67,37 +67,8 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversationId, onNavigate }) =
     };
   }, [conversationId]);
 
-  // Load conversation on mount or when conversationId changes
-  useEffect(() => {
-    if (!conversationId) {
-      setCurrentConversation(null);
-      return;
-    }
-
-    let cancelled = false;
-    const load = async () => {
-      setLoading(true);
-      try {
-        const conv = await conversationApi.getConversation(conversationId);
-        if (!cancelled) {
-          setCurrentConversation(conv);
-        }
-      } catch (err) {
-        if (!cancelled) {
-          setError(err instanceof Error ? err.message : 'Failed to load conversation');
-        }
-      } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
-      }
-    };
-    load();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [conversationId, setCurrentConversation, setLoading, setError]);
+  // Conversation data is loaded by App.tsx via handleSelectConversation.
+  // ChatWindow reads from the store — no duplicate fetch needed.
 
   // Poll exploration status while any branches are exploring
   useEffect(() => {

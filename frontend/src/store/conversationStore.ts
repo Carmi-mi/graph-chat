@@ -8,6 +8,7 @@ interface ConversationState {
   currentConversation: ConversationWithTree | null;
   currentBranchId: string | null;
   conversationBranchMap: Record<string, string>; // conversationId → last branchId
+  conversationCache: Record<string, ConversationWithTree>; // conversationId → full tree cache
   isLoading: boolean;
   waitingBranchId: string | null;
   error: string | null;
@@ -32,6 +33,7 @@ const useConversationStore = create<ConversationState>()(
       currentConversation: null,
       currentBranchId: null,
       conversationBranchMap: {},
+      conversationCache: {},
       isLoading: false,
       waitingBranchId: null,
       error: null,
@@ -46,6 +48,11 @@ const useConversationStore = create<ConversationState>()(
           if (state.currentConversation && state.currentBranchId) {
             map[state.currentConversation.id] = state.currentBranchId;
           }
+          // Update cache
+          const cache = { ...state.conversationCache };
+          if (conversation) {
+            cache[conversation.id] = conversation;
+          }
           // Restore saved branch for the new conversation, or default to root
           const newBranchId = conversation
             ? (map[conversation.id] ?? conversation.id)
@@ -54,6 +61,7 @@ const useConversationStore = create<ConversationState>()(
             currentConversation: conversation,
             currentBranchId: newBranchId,
             conversationBranchMap: map,
+            conversationCache: cache,
           };
         }),
 
@@ -84,10 +92,13 @@ const useConversationStore = create<ConversationState>()(
         set((state) => {
           const filtered = state.conversations.filter((c) => c.id !== id);
           const wasCurrent = state.currentConversation?.id === id;
+          const cache = { ...state.conversationCache };
+          delete cache[id];
           return {
             conversations: filtered,
             currentConversation: wasCurrent ? null : state.currentConversation,
             currentBranchId: wasCurrent ? null : state.currentBranchId,
+            conversationCache: cache,
           };
         }),
 
@@ -106,6 +117,7 @@ const useConversationStore = create<ConversationState>()(
         currentConversation: state.currentConversation,
         currentBranchId: state.currentBranchId,
         conversationBranchMap: state.conversationBranchMap,
+        conversationCache: state.conversationCache,
       }),
     },
   ),

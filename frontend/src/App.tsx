@@ -7,7 +7,7 @@ import MergeModal from './components/MergeModal';
 import ConfirmDialog from './components/ConfirmDialog';
 import ErrorToast from './components/ErrorToast';
 import { useConversationStore, useUIStore } from './store';
-import { findNode } from './services/treeUtils';
+import { findNode, removeNode } from './services/treeUtils';
 import { handleMessageDelivered } from './services/messageUtils';
 import * as conversationApi from './api/conversation';
 import * as agentApi from './api/agent';
@@ -50,14 +50,25 @@ function App() {
     loadConversations();
   }, [setConversations, setLoading, setError]);
 
-  // Select a conversation: load its full tree
+  // Select a conversation: use cache if available and not dirty, otherwise fetch
   const handleSelectConversation = useCallback(
     async (id: string) => {
+      const hasDirty = (dirtyBranches[id] ?? []).length > 0;
+      const cached = useConversationStore.getState().conversationCache[id];
+
+      if (cached && !hasDirty) {
+        setCurrentConversation(cached);
+        const currentBranch = useConversationStore.getState().currentBranchId;
+        if (currentBranch) {
+          removeDirtyBranch(id, currentBranch);
+        }
+        return;
+      }
+
       setLoading(true);
       try {
         const conv = await conversationApi.getConversation(id);
         setCurrentConversation(conv);
-        // Clear dirty for current branch — store restores the saved branch position
         const currentBranch = useConversationStore.getState().currentBranchId;
         if (currentBranch) {
           removeDirtyBranch(id, currentBranch);
@@ -68,7 +79,7 @@ function App() {
         setLoading(false);
       }
     },
-    [setCurrentConversation, setLoading, setError, removeDirtyBranch],
+    [dirtyBranches, setCurrentConversation, setLoading, setError, removeDirtyBranch],
   );
 
   // Create a new conversation with a default name, then select it
@@ -160,12 +171,12 @@ function App() {
       if (!currentConversation) return;
       try {
         await conversationApi.deleteConversation(id);
-        // Refresh the conversation tree
-        const conv = await conversationApi.getConversation(currentConversation.id);
-        setCurrentConversation(conv);
-        // Clear dirty state for the deleted branch
+        // Update local tree instead of re-fetching
+        const updated = removeNode(currentConversation, id);
+        if (updated) {
+          setCurrentConversation(updated);
+        }
         removeDirtyBranch(currentConversation.id, id);
-        // If deleted branch was selected, switch to root
         if (currentBranchId === id) {
           setCurrentBranchId(currentConversation.id);
         }
