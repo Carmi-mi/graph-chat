@@ -67,8 +67,41 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversationId, onNavigate }) =
     };
   }, [conversationId]);
 
-  // Conversation data is loaded by App.tsx via handleSelectConversation.
-  // ChatWindow reads from the store — no duplicate fetch needed.
+  // Load conversation on mount or when conversationId changes
+  useEffect(() => {
+    if (!conversationId) {
+      setCurrentConversation(null);
+      return;
+    }
+
+    // Skip fetch if store already has this conversation loaded
+    const state = useConversationStore.getState();
+    if (state.currentConversation?.id === conversationId) return;
+
+    let cancelled = false;
+    const load = async () => {
+      setLoading(true);
+      try {
+        const conv = await conversationApi.getConversation(conversationId);
+        if (!cancelled) {
+          setCurrentConversation(conv);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : 'Failed to load conversation');
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    };
+    load();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [conversationId, setCurrentConversation, setLoading, setError]);
 
   // Poll exploration status while any branches are exploring
   useEffect(() => {
@@ -85,10 +118,8 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversationId, onNavigate }) =
           const conv = await conversationApi.getConversation(conversationId);
           const s = useConversationStore.getState();
           if (s.currentConversation?.id === conversationId) {
-            useConversationStore.setState({
-              currentConversation: conv,
-              currentBranchId: currentBranchId,
-            });
+            setCurrentConversation(conv);
+            setCurrentBranchId(currentBranchId);
           }
           clearInterval(interval);
         }
@@ -119,10 +150,8 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversationId, onNavigate }) =
       setForkingMessageId(null);
       if (conversationId) {
         const conv = await conversationApi.getConversation(conversationId);
-        useConversationStore.setState({
-          currentConversation: conv,
-          currentBranchId: child.id,
-        });
+        setCurrentConversation(conv);
+        setCurrentBranchId(child.id);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create branch');
@@ -219,7 +248,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversationId, onNavigate }) =
                 // Only update store if user is still viewing this conversation
                 const s = useConversationStore.getState();
                 if (s.currentConversation?.id === sentFromConversationId) {
-                  useConversationStore.setState({ currentConversation: conv });
+                  setCurrentConversation(conv);
                   const elapsed = ((Date.now() - pollStart) / 1000).toFixed(0);
                   setAnnotationToast(`成功生成标注，用时${elapsed}s`);
                   setTimeout(() => setAnnotationToast(null), 5000);
@@ -260,10 +289,8 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversationId, onNavigate }) =
         // Refresh conversation tree, preserve current branch
         if (conversationId) {
           const conv = await conversationApi.getConversation(conversationId);
-          useConversationStore.setState({
-            currentConversation: conv,
-            currentBranchId: currentBranchId,
-          });
+          setCurrentConversation(conv);
+          setCurrentBranchId(currentBranchId);
         }
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to start exploration');
@@ -310,10 +337,8 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversationId, onNavigate }) =
 
         // Refresh tree and switch to the new branch
         const conv = await conversationApi.getConversation(conversationId);
-        useConversationStore.setState({
-          currentConversation: conv,
-          currentBranchId: child.id,
-        });
+        setCurrentConversation(conv);
+        setCurrentBranchId(child.id);
 
         // Auto-send message in background to trigger LLM reply + annotations
         const fullSuggestion = suggestionDesc
@@ -329,13 +354,10 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversationId, onNavigate }) =
           const state = useConversationStore.getState();
           if (state.currentConversation?.id === conversationId && state.currentBranchId === child.id) {
             // Same conversation and same branch — update tree directly
-            useConversationStore.setState({
-              currentConversation: updated,
-              currentBranchId: state.currentBranchId,
-            });
+            setCurrentConversation(updated);
           } else if (state.currentConversation?.id === conversationId) {
             // Same conversation, different branch — refresh tree and mark dirty
-            useConversationStore.setState({ currentConversation: updated });
+            setCurrentConversation(updated);
             useUIStore.getState().addDirtyBranch(conversationId, child.id);
           } else {
             // Different conversation — just mark dirty
@@ -365,7 +387,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversationId, onNavigate }) =
                   // Only update store if user is still viewing this conversation
                   const s = useConversationStore.getState();
                   if (s.currentConversation?.id === conversationId) {
-                    useConversationStore.setState({ currentConversation: conv });
+                    setCurrentConversation(conv);
                     const elapsed = ((Date.now() - pollStart) / 1000).toFixed(0);
                     setAnnotationToast(`成功生成标注，用时${elapsed}s`);
                     setTimeout(() => setAnnotationToast(null), 5000);
