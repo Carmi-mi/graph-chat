@@ -55,7 +55,10 @@ export function useTextSelection(containerRef: React.RefObject<HTMLElement | nul
       const range = selection.getRangeAt(0);
       const rect = range.getBoundingClientRect();
 
-      if (container.contains(range.commonAncestorContainer)) {
+      const target = range.commonAncestorContainer instanceof HTMLElement
+        ? range.commonAncestorContainer
+        : range.commonAncestorContainer.parentElement;
+      if (container.contains(range.commonAncestorContainer) && target?.closest('[data-role="assistant"]')) {
         setSelectedText(text);
         setPosition({
           top: rect.top,

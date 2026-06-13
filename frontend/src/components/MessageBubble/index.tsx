@@ -238,7 +238,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
   }
 
   return (
-    <div className={`flex ${isUser ? 'justify-end' : 'justify-start'} mb-4`}>
+    <div data-role={message.role} className={`flex ${isUser ? 'justify-end' : 'justify-start'} mb-4`}>
       <div className="inline-flex flex-col items-start gap-0.5">
         {/* Annotation match indicator */}
         {!isUser && matchInfo && matchInfo.total > 0 && (
