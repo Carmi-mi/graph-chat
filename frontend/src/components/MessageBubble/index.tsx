@@ -162,7 +162,7 @@ const markdownComponents: Components = {
   code: ({ children, className }) => {
     const isInline = !className;
     return isInline ? (
-      <code className="text-[#667eea] bg-gray-100 px-1 py-0.5 rounded text-xs">{children}</code>
+      <code className="text-gray-800 bg-gray-100 px-1 py-0.5 rounded text-xs">{children}</code>
     ) : (
       <code className={className}>{children}</code>
     );
@@ -171,7 +171,7 @@ const markdownComponents: Components = {
     <pre className="bg-gray-50 p-2 rounded-lg overflow-x-auto my-2 text-xs">{children}</pre>
   ),
   blockquote: ({ children }) => (
-    <blockquote className="border-l-2 border-[#667eea] bg-gray-50 py-1 px-3 rounded-r-lg my-2">{children}</blockquote>
+    <blockquote className="border-l-2 border-gray-300 bg-gray-50 py-1 px-3 rounded-r-lg my-2">{children}</blockquote>
   ),
   table: ({ children }) => (
     <table className="border-collapse text-sm my-2">{children}</table>
