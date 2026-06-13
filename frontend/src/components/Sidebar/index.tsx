@@ -11,20 +11,6 @@ interface SidebarProps {
   onDelete: (id: string) => void;
 }
 
-const statusColors: Record<Conversation['status'], string> = {
-  active: 'bg-green-400',
-  exploring: 'bg-yellow-400',
-  done: 'bg-blue-400',
-  archived: 'bg-gray-400',
-};
-
-const statusLabels: Record<Conversation['status'], string> = {
-  active: 'Active',
-  exploring: 'Exploring',
-  done: 'Done',
-  archived: 'Archived',
-};
-
 const Sidebar: React.FC<SidebarProps> = ({
   conversations,
   currentId,
@@ -93,15 +79,9 @@ const Sidebar: React.FC<SidebarProps> = ({
                     )}
                   </div>
 
-                  <div className="flex items-center gap-2 mt-1">
-                    <span
-                      className={`w-2 h-2 rounded-full ${statusColors[conv.status]}`}
-                      title={statusLabels[conv.status]}
-                    />
-                    <span className="text-xs text-gray-400">
-                      {formatDate(conv.createdAt)}
-                    </span>
-                  </div>
+                  <span className="text-xs text-gray-400 mt-1">
+                    {formatDate(conv.createdAt)}
+                  </span>
                 </div>
               </div>
             </button>
