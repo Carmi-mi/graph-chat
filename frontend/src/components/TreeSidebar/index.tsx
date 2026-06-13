@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Trash2 } from 'lucide-react';
+import { Trash2, ChevronRight } from 'lucide-react';
 import type { ConversationWithTree } from '../../schemas';
 
 interface TreeSidebarProps {
@@ -32,6 +32,8 @@ const TreeNode: React.FC<TreeNodeProps> = ({
   const isActive = node.id === currentBranchId;
   const isDirty = dirtySet.has(node.id);
   const [hovered, setHovered] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
+  const hasChildren = node.children.length > 0;
 
   return (
     <div>
@@ -49,6 +51,16 @@ const TreeNode: React.FC<TreeNodeProps> = ({
           }`}
           style={{ paddingLeft: `${depth * 16 + 8}px` }}
         >
+          {hasChildren ? (
+            <span
+              onClick={(e) => { e.stopPropagation(); setCollapsed(!collapsed); }}
+              className="shrink-0 w-4 h-4 flex items-center justify-center cursor-pointer"
+            >
+              <ChevronRight className={`w-3 h-3 transition-transform ${collapsed ? '' : 'rotate-90'}`} />
+            </span>
+          ) : (
+            <span className="shrink-0 w-4 h-4" />
+          )}
           {isDirty && !isActive && (
             <span className="shrink-0 w-2 h-2 rounded-full bg-red-500" />
           )}
@@ -66,7 +78,7 @@ const TreeNode: React.FC<TreeNodeProps> = ({
         </button>
       </div>
 
-      {node.children.length > 0 && (
+      {hasChildren && !collapsed && (
         <div>
           {node.children.map((child) => (
             <TreeNode
