@@ -114,7 +114,7 @@ const TreeSidebar: React.FC<TreeSidebarProps> = ({
       <div className="min-h-[52px] flex items-center px-3 border-b border-gray-200/50">
         <h3 className="text-sm font-semibold text-gray-700">Conversation Tree</h3>
       </div>
-      <div className="flex-1 overflow-y-auto p-2">
+      <div className="flex-1 overflow-y-auto p-2 scroll-chat">
         <TreeNode
           node={tree}
           depth={0}

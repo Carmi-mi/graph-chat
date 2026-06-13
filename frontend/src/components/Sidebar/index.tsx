@@ -56,7 +56,7 @@ const Sidebar: React.FC<SidebarProps> = ({
       </div>
 
       {/* Conversation list */}
-      <div className="flex-1 overflow-y-auto p-2 space-y-1">
+      <div className="flex-1 overflow-y-auto p-2 space-y-1 scroll-chat">
         {conversations.length === 0 && (
           <p className="text-center text-sm text-gray-400 py-8">
             No conversations yet

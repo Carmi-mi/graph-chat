@@ -55,7 +55,7 @@ const InputArea: React.FC<InputAreaProps> = ({
           placeholder="Type a message..."
           disabled={disabled || isLoading}
           rows={1}
-          className="flex-1 h-10 resize-none rounded-xl border border-gray-200 bg-white px-4 py-2 text-base text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#667eea]/30 focus:border-[#667eea] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+          className="flex-1 h-10 resize-none rounded-xl border border-gray-200 bg-white px-4 py-2 text-base text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#667eea]/30 focus:border-[#667eea] transition-all disabled:opacity-50 disabled:cursor-not-allowed scroll-chat"
         />
         <button
           onClick={handleSend}
