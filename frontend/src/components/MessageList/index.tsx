@@ -28,23 +28,25 @@ const MessageList: React.FC<MessageListProps> = ({
   return (
     <div
       ref={scrollRef}
-      className="flex-1 overflow-y-auto px-4 py-6 space-y-1 scroll-chat"
+      className="flex-1 overflow-y-auto scroll-chat"
     >
-      {messages.length === 0 && (
-        <div className="flex flex-col items-center justify-center h-full text-gray-400">
-          <p className="text-lg font-medium">Start a conversation</p>
-          <p className="text-sm mt-1">Send a message to begin exploring ideas</p>
-        </div>
-      )}
-      {messages.filter((m) => m && m.nodeType !== 'fork_root').map((message) => (
-        <MessageBubble
-          key={message.id}
-          message={message}
-          annotationEnabled={annotationEnabled}
-          onAnnotationClick={onAnnotationClick}
-          onTextSelect={onTextSelect}
-        />
-      ))}
+      <div className="max-w-3xl mx-auto px-4 py-6 space-y-1">
+        {messages.length === 0 && (
+          <div className="flex flex-col items-center justify-center h-full text-gray-400">
+            <p className="text-lg font-medium">Start a conversation</p>
+            <p className="text-sm mt-1">Send a message to begin exploring ideas</p>
+          </div>
+        )}
+        {messages.filter((m) => m && m.nodeType !== 'fork_root').map((message) => (
+          <MessageBubble
+            key={message.id}
+            message={message}
+            annotationEnabled={annotationEnabled}
+            onAnnotationClick={onAnnotationClick}
+            onTextSelect={onTextSelect}
+          />
+        ))}
+      </div>
     </div>
   );
 };
