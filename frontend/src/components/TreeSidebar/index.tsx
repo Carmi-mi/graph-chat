@@ -51,7 +51,7 @@ const TreeNode: React.FC<TreeNodeProps> = ({
         >
           <span className="truncate">{node.name}</span>
           {isDirty && !isActive && (
-            <span className="ml-auto shrink-0 w-2 h-2 rounded-full bg-[#667eea]" />
+            <span className="ml-auto shrink-0 w-2 h-2 rounded-full bg-red-500" />
           )}
         </button>
         <button

@@ -75,7 +75,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                       {conv.name}
                     </p>
                     {hasDirty && !isCurrent && (
-                      <span className="shrink-0 w-2 h-2 rounded-full bg-[#667eea]" />
+                      <span className="shrink-0 w-2 h-2 rounded-full bg-red-500" />
                     )}
                   </div>
 
