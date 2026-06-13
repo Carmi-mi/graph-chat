@@ -49,17 +49,17 @@ const TreeNode: React.FC<TreeNodeProps> = ({
               ? 'bg-[#667eea]/15 text-[#667eea] font-medium'
               : 'text-gray-600 hover:bg-gray-100'
           }`}
-          style={{ paddingLeft: `${depth * 16 + 8}px` }}
+          style={{ paddingLeft: `${depth * 8 + 8}px` }}
         >
           {hasChildren ? (
             <span
               onClick={(e) => { e.stopPropagation(); setCollapsed(!collapsed); }}
-              className="shrink-0 w-4 h-4 flex items-center justify-center cursor-pointer"
+              className="shrink-0 w-3 h-3 flex items-center justify-center cursor-pointer"
             >
               <ChevronRight className={`w-3 h-3 transition-transform ${collapsed ? '' : 'rotate-90'}`} />
             </span>
           ) : (
-            <span className="shrink-0 w-4 h-4" />
+            <span className="shrink-0 w-3 h-3" />
           )}
           {isDirty && !isActive && (
             <span className="shrink-0 w-2 h-2 rounded-full bg-red-500" />
