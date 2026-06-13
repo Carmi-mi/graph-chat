@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { GitMerge, PanelLeftClose, PanelLeft } from 'lucide-react';
+import { GitMerge, PanelLeftClose, PanelLeft, PanelRightClose, PanelRight } from 'lucide-react';
 import Sidebar from './components/Sidebar';
 import ChatWindow from './components/ChatWindow';
 import TreeSidebar from './components/TreeSidebar';
@@ -28,7 +28,7 @@ function App() {
     setError,
   } = useConversationStore();
 
-  const { sidebarOpen, toggleSidebar, dirtyBranches, removeDirtyBranch, clearDirtyBranches } = useUIStore();
+  const { sidebarOpen, toggleSidebar, treeSidebarOpen, toggleTreeSidebar, dirtyBranches, removeDirtyBranch, clearDirtyBranches } = useUIStore();
 
   const [showMergeModal, setShowMergeModal] = useState(false);
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
@@ -213,11 +213,11 @@ function App() {
       )}
 
       {/* Center: main chat area */}
-      <div className="flex-1 flex flex-col min-w-0 relative">
+      <div className="flex-1 h-full flex flex-col min-w-0 relative">
         <button
           type="button"
           onClick={toggleSidebar}
-          className="absolute top-3 left-3 z-20 p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors cursor-pointer"
+          className="absolute top-3 left-3 z-40 p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors cursor-pointer"
           title={sidebarOpen ? 'Close sidebar' : 'Open sidebar'}
         >
           {sidebarOpen ? (
@@ -227,14 +227,30 @@ function App() {
           )}
         </button>
 
+        {/* Right sidebar toggle button */}
+        {hasChildren && (
+          <button
+            type="button"
+            onClick={toggleTreeSidebar}
+            className="absolute top-3 right-3 z-40 p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors cursor-pointer"
+            title={treeSidebarOpen ? 'Close tree sidebar' : 'Open tree sidebar'}
+          >
+            {treeSidebarOpen ? (
+              <PanelRightClose className="w-5 h-5" />
+            ) : (
+              <PanelRight className="w-5 h-5" />
+            )}
+          </button>
+        )}
+
         <ChatWindow
           conversationId={currentConversation?.id ?? null}
           onNavigate={handleNavigate}
         />
       </div>
 
-      {/* Right sidebar: tree navigation (only when conversation has branches) */}
-      {hasChildren && (
+      {/* Right sidebar: tree navigation (only when conversation has branches and sidebar is open) */}
+      {hasChildren && treeSidebarOpen && (
         <TreeSidebar
           tree={currentConversation!}
           currentBranchId={currentBranchId}

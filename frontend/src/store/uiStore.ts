@@ -4,6 +4,7 @@ import { persist } from 'zustand/middleware';
 interface UIState {
   // State
   sidebarOpen: boolean;
+  treeSidebarOpen: boolean;
   annotationEnabled: boolean;
   exploringBranches: string[]; // branch IDs currently exploring
   dirtyBranches: Record<string, string[]>; // rootConversationId -> branch IDs with unseen messages
@@ -11,6 +12,7 @@ interface UIState {
   // Actions
   toggleSidebar: () => void;
   setSidebarOpen: (open: boolean) => void;
+  toggleTreeSidebar: () => void;
   toggleAnnotation: () => void;
   setAnnotationEnabled: (enabled: boolean) => void;
   addExploringBranch: (id: string) => void;
@@ -25,6 +27,7 @@ const useUIStore = create<UIState>()(
     (set) => ({
   // Initial state
   sidebarOpen: true,
+  treeSidebarOpen: true,
   annotationEnabled: true,
   exploringBranches: [],
   dirtyBranches: {},
@@ -33,6 +36,8 @@ const useUIStore = create<UIState>()(
   toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
 
   setSidebarOpen: (open) => set({ sidebarOpen: open }),
+
+  toggleTreeSidebar: () => set((state) => ({ treeSidebarOpen: !state.treeSidebarOpen })),
 
   toggleAnnotation: () =>
     set((state) => ({ annotationEnabled: !state.annotationEnabled })),
@@ -91,6 +96,7 @@ const useUIStore = create<UIState>()(
       name: 'graphchat-ui-store',
       partialize: (state) => ({
         sidebarOpen: state.sidebarOpen,
+        treeSidebarOpen: state.treeSidebarOpen,
         annotationEnabled: state.annotationEnabled,
         dirtyBranches: state.dirtyBranches,
       }),
