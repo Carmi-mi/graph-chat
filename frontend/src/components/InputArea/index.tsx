@@ -13,7 +13,7 @@ const InputArea: React.FC<InputAreaProps> = ({
   onSend,
   isLoading = false,
   disabled = false,
-  annotationEnabled = false,
+  annotationEnabled = true,
   onToggleAnnotation,
 }) => {
   const [value, setValue] = useState('');
