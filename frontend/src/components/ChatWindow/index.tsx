@@ -412,8 +412,6 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversationId, onNavigate }) =
     <div className="flex flex-col h-full bg-white relative">
       <Header
         breadcrumbs={breadcrumbs}
-        annotationEnabled={annotationEnabled}
-        onToggleAnnotation={toggleAnnotation}
         onBreadcrumbClick={handleBreadcrumbClick}
       />
 
@@ -469,6 +467,8 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversationId, onNavigate }) =
         onSend={handleSend}
         isLoading={waitingBranchId === currentBranchId || mergeWaitingBranchId === currentBranchId}
         disabled={!currentBranchId || isLoading || waitingBranchId === currentBranchId || mergeWaitingBranchId === currentBranchId}
+        annotationEnabled={annotationEnabled}
+        onToggleAnnotation={toggleAnnotation}
       />
 
       {/* Annotation popup — edge-aware positioning computed in handleAnnotationClick */}
