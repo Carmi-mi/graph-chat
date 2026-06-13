@@ -32,7 +32,7 @@ const MessageList: React.FC<MessageListProps> = ({
     >
       <div className="max-w-3xl mx-auto px-4 py-6 space-y-1">
         {messages.length === 0 && (
-          <div className="flex flex-col items-center justify-center h-full text-gray-400">
+          <div className="flex flex-col items-center justify-center min-h-[60vh] text-gray-400">
             <p className="text-lg font-medium">Start a conversation</p>
             <p className="text-sm mt-1">Send a message to begin exploring ideas</p>
           </div>
