@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Trash2 } from 'lucide-react';
 import type { ConversationWithTree } from '../../schemas';
 
@@ -31,10 +31,15 @@ const TreeNode: React.FC<TreeNodeProps> = ({
 }) => {
   const isActive = node.id === currentBranchId;
   const isDirty = dirtySet.has(node.id);
+  const [hovered, setHovered] = useState(false);
 
   return (
-    <div className="group/node">
-      <div className="relative">
+    <div>
+      <div
+        className="relative"
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
+      >
         <button
           onClick={() => onSelectBranch(node.id)}
           className={`w-full text-left px-2 py-1.5 rounded-lg text-sm transition-all flex items-center gap-1.5 ${
@@ -49,18 +54,16 @@ const TreeNode: React.FC<TreeNodeProps> = ({
             <span className="ml-auto shrink-0 w-2 h-2 rounded-full bg-[#667eea]" />
           )}
         </button>
-        {!isRoot && (
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onDeleteBranch(node.id);
-            }}
-            className="absolute right-1 top-1/2 -translate-y-1/2 p-1 rounded text-gray-400 hover:text-red-500 hover:bg-red-50 opacity-0 group-hover/node:opacity-100 transition-all cursor-pointer"
-            title="Delete branch"
-          >
-            <Trash2 className="w-3 h-3" />
-          </button>
-        )}
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onDeleteBranch(node.id);
+          }}
+          className={`absolute right-1 top-1/2 -translate-y-1/2 p-1 rounded text-gray-400 hover:text-red-500 hover:bg-red-50 transition-all cursor-pointer ${hovered ? 'opacity-100' : 'opacity-0'}`}
+          title="Delete branch"
+        >
+          <Trash2 className="w-3 h-3" />
+        </button>
       </div>
 
       {node.children.length > 0 && (

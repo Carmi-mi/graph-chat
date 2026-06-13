@@ -175,7 +175,20 @@ function App() {
       if (!currentConversation) return;
       try {
         await conversationApi.deleteConversation(id);
-        // Update local tree instead of re-fetching
+        // Deleting root branch = delete entire conversation
+        if (id === currentConversation.id) {
+          const remaining = conversations.filter((c) => c.id !== id);
+          setConversations(remaining);
+          clearDirtyBranches(id);
+          if (remaining.length > 0) {
+            await handleSelectConversation(remaining[0].id);
+          } else {
+            setCurrentConversation(null);
+            setCurrentBranchId(null);
+          }
+          return;
+        }
+        // Deleting a sub-branch: update local tree
         const updated = removeNode(currentConversation, id);
         if (updated) {
           setCurrentConversation(updated);
@@ -188,7 +201,7 @@ function App() {
         setError(err instanceof Error ? err.message : 'Failed to delete branch');
       }
     },
-    [currentConversation, currentBranchId, setCurrentConversation, setCurrentBranchId, removeDirtyBranch, setError],
+    [currentConversation, currentBranchId, conversations, setConversations, setCurrentConversation, setCurrentBranchId, removeDirtyBranch, clearDirtyBranches, handleSelectConversation, setError],
   );
 
   const hasChildren = currentConversation != null && currentConversation.children.length > 0;
