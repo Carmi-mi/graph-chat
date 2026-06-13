@@ -122,7 +122,7 @@ function applyAnnotationHighlights(
       }
 
       const span = document.createElement('span');
-      span.className = 'ann-highlight bg-[#667eea]/15 border-b-2 border-[#667eea] rounded-sm cursor-pointer hover:bg-[#667eea]/25 transition-colors';
+      span.className = 'ann-highlight bg-blue-50 border-b-2 border-blue-300 rounded-sm cursor-pointer hover:bg-blue-100 transition-colors';
       span.textContent = nodeText.slice(overlapStart - renderedStart, overlapEnd - renderedStart);
       span.addEventListener('click', (ev) => { ev.stopPropagation(); onAnnotationClick(ann, ev.clientX, ev.clientY); });
       parts.push(span);
