@@ -44,7 +44,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   return (
     <div className="w-64 h-full flex flex-col bg-gray-50 border-r border-gray-200 relative z-10">
       {/* Header */}
-      <div className="p-3 border-b border-gray-200/50">
+      <div className="p-3">
         <button
           type="button"
           onClick={onCreate}
