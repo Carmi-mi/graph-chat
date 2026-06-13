@@ -34,13 +34,19 @@ export function handleMessageDelivered(
   const stillOnSameBranch = state.currentBranchId === branchId;
 
   if (stillOnSameConversation && stillOnSameBranch && state.currentConversation) {
+    const updated = appendMessagesToTree(state.currentConversation, branchId, messages);
+    const cache = { ...state.conversationCache, [conversationId]: updated };
     useConversationStore.setState({
-      currentConversation: appendMessagesToTree(state.currentConversation, branchId, messages),
+      currentConversation: updated,
       currentBranchId: branchId,
+      conversationCache: cache,
     });
   } else if (stillOnSameConversation && state.currentConversation) {
+    const updated = appendMessagesToTree(state.currentConversation, branchId, messages);
+    const cache = { ...state.conversationCache, [conversationId]: updated };
     useConversationStore.setState({
-      currentConversation: appendMessagesToTree(state.currentConversation, branchId, messages),
+      currentConversation: updated,
+      conversationCache: cache,
     });
     useUIStore.getState().addDirtyBranch(conversationId, branchId);
   } else {

@@ -123,7 +123,9 @@ const useConversationStore = create<ConversationState>()(
             return node;
           };
 
-          return { currentConversation: update(state.currentConversation) };
+          const updated = update(state.currentConversation);
+          const cache = { ...state.conversationCache, [state.currentConversation.id]: updated };
+          return { currentConversation: updated, conversationCache: cache };
         }),
 
       updateCachedConversation: (conversationId, updater) =>
