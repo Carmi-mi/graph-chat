@@ -394,8 +394,8 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversationId, onNavigate }) =
     [setCurrentBranchId, onNavigate],
   );
 
-  const messages = useMemo(() => {
-    if (!currentConversation || !currentBranchId) return [];
+  const { messages, forkText } = useMemo(() => {
+    if (!currentConversation || !currentBranchId) return { messages: [], forkText: null };
     const findNode = (node: typeof currentConversation): typeof currentConversation | null => {
       if (node.id === currentBranchId) return node;
       for (const child of node.children) {
@@ -405,7 +405,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversationId, onNavigate }) =
       return null;
     };
     const node = findNode(currentConversation);
-    return node?.messages ?? [];
+    return { messages: node?.messages ?? [], forkText: node?.forkText ?? null };
   }, [currentConversation, currentBranchId]);
 
   return (
@@ -427,6 +427,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversationId, onNavigate }) =
       <div ref={messageAreaRef} className="flex-1 flex flex-col overflow-hidden">
         <MessageList
           messages={messages}
+          forkText={forkText}
           annotationEnabled={annotationEnabled}
           onAnnotationClick={handleAnnotationClick}
           onTextSelect={handleTextSelect}
