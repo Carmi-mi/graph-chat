@@ -64,7 +64,7 @@ const TreeNode: React.FC<TreeNodeProps> = ({
           {isDirty && !isActive && (
             <span className="shrink-0 w-2 h-2 rounded-full bg-red-500" />
           )}
-          <span className="truncate">{node.name}</span>
+          <span className="truncate">{node.name.replace(/^Fork:\s*/, '')}</span>
         </button>
         <button
           onClick={(e) => {

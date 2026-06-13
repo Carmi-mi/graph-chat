@@ -83,7 +83,7 @@ class ForkService:
             )
 
         # Create the child conversation
-        fork_name = f"Fork: {selected_text[:50]}"
+        fork_name = selected_text[:50]
         child = await self.conversation_repo.create(
             name=fork_name,
             parent_id=parent_conv.id,

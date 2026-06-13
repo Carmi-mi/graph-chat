@@ -53,7 +53,7 @@ class TestForkService:
         conv_id = uuid.uuid4()
         msg = _make_message(conversation_id=conv_id)
         conv = _make_conversation(id=conv_id)
-        child = _make_conversation(name="Fork: Some text")
+        child = _make_conversation(name="Some text")
 
         mock_msg_repo.get.return_value = msg
         mock_conv_repo.get.return_value = conv
@@ -61,7 +61,7 @@ class TestForkService:
         mock_msg_repo.create.return_value = MagicMock()
 
         result = await service.fork(msg.id, "Some selected text", "Try this")
-        assert result.name.startswith("Fork:")
+        assert result.name == "Some text"
         mock_conv_repo.create.assert_awaited_once()
         mock_msg_repo.create.assert_awaited_once()
 

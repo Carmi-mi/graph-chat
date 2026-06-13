@@ -142,7 +142,7 @@ class TestForkAPI:
         assert fork_resp.status_code == 201
         fork_data = fork_resp.json()
         assert fork_data["parentId"] == conv_id
-        assert "Fork:" in fork_data["name"]
+        assert fork_data["name"] == "quantum computing basics"
         assert fork_data["forkText"] == "quantum computing basics"
 
     async def test_fork_text_too_short(self, client: AsyncClient):
