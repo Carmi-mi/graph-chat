@@ -32,19 +32,6 @@ const TreeNode: React.FC<TreeNodeProps> = ({
   const isActive = node.id === currentBranchId;
   const isDirty = dirtySet.has(node.id);
 
-  const statusIcon = () => {
-    switch (node.status) {
-      case 'exploring':
-        return <span className="text-yellow-500 text-xs">&#x1f504;</span>;
-      case 'done':
-        return <span className="text-green-500 text-xs">&#x2713;</span>;
-      case 'active':
-        return <span className="text-blue-500 text-xs">&#x25cf;</span>;
-      default:
-        return <span className="text-gray-400 text-xs">&#x25cb;</span>;
-    }
-  };
-
   return (
     <div className="group/node">
       <div className="relative">
@@ -57,7 +44,6 @@ const TreeNode: React.FC<TreeNodeProps> = ({
           }`}
           style={{ paddingLeft: `${depth * 16 + 8}px` }}
         >
-          {statusIcon()}
           <span className="truncate">{node.name}</span>
           {isDirty && !isActive && (
             <span className="ml-auto shrink-0 w-2 h-2 rounded-full bg-[#667eea]" />
