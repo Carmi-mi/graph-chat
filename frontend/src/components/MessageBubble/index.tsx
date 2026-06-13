@@ -252,7 +252,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
         )}
         <div
           ref={containerRef}
-          className={`max-w-[70vw] px-4 py-3 rounded-2xl text-sm leading-relaxed ${
+          className={`${isUser ? 'max-w-[42vw]' : 'max-w-[70vw]'} px-4 py-3 rounded-2xl text-sm leading-relaxed ${
             isUser
               ? 'bg-gradient-to-r from-[#667eea] to-[#764ba2] text-white rounded-br-md'
               : 'bg-white border border-gray-200 text-gray-800 rounded-bl-md shadow-sm'
