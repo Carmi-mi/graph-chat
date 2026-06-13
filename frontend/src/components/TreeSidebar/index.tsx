@@ -111,7 +111,7 @@ const TreeSidebar: React.FC<TreeSidebarProps> = ({
 
   return (
     <div className="w-64 h-full flex flex-col bg-gray-50/80 border-l border-gray-200/50 backdrop-blur-sm">
-      <div className="p-3 border-b border-gray-200/50">
+      <div className="min-h-[52px] flex items-center px-3 border-b border-gray-200/50">
         <h3 className="text-sm font-semibold text-gray-700">Conversation Tree</h3>
       </div>
       <div className="flex-1 overflow-y-auto p-2">

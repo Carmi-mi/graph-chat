@@ -20,7 +20,7 @@ const Header: React.FC<HeaderProps> = ({
   onBreadcrumbClick,
 }) => {
   return (
-    <header className="sticky top-0 z-30 flex items-center justify-between px-4 py-3 bg-white/70 backdrop-blur-lg border-b border-gray-200/50">
+    <header className="sticky top-0 z-30 flex items-center justify-between px-3 min-h-[52px] bg-white/70 backdrop-blur-lg border-b border-gray-200/50">
       {/* Left: Logo + Breadcrumb */}
       <div className="flex items-center gap-3 min-w-0">
         <div className="flex items-center gap-2 shrink-0">
