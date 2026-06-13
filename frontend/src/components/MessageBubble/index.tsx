@@ -252,11 +252,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
         )}
         <div
           ref={containerRef}
-          className={`${isUser ? 'max-w-[480px]' : 'max-w-[800px]'} px-4 py-3 rounded-2xl text-base leading-relaxed ${
-            isUser
-              ? 'bg-gradient-to-r from-[#667eea] to-[#764ba2] text-white rounded-br-md'
-              : 'bg-white border border-gray-200 text-gray-800 rounded-bl-md shadow-sm'
-          }`}
+          className={`${isUser ? 'max-w-[480px] bg-gray-100 text-gray-800 rounded-2xl rounded-br-md px-4 py-3' : 'max-w-[800px] text-gray-800'} text-base leading-relaxed`}
           onMouseUp={handleMouseUp}
         >
           {isUser ? (

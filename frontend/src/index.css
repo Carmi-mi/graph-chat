@@ -4,21 +4,19 @@
 
 /* Custom scrollbar for chat area */
 .scroll-chat::-webkit-scrollbar {
-  width: 8px;
+  width: 6px;
 }
 .scroll-chat::-webkit-scrollbar-track {
-  background: #f3f4f6;
-  border-radius: 4px;
+  background: transparent;
 }
 .scroll-chat::-webkit-scrollbar-thumb {
-  background-color: #9ca3af;
-  border-radius: 4px;
-  border: 1px solid #f3f4f6;
+  background-color: #e5e7eb;
+  border-radius: 3px;
 }
 .scroll-chat::-webkit-scrollbar-thumb:hover {
-  background-color: #6b7280;
+  background-color: #d1d5db;
 }
 .scroll-chat {
   scrollbar-width: thin;
-  scrollbar-color: #9ca3af #f3f4f6;
+  scrollbar-color: #e5e7eb transparent;
 }

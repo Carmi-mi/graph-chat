@@ -409,7 +409,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversationId, onNavigate }) =
   }, [currentConversation, currentBranchId]);
 
   return (
-    <div className="flex flex-col h-full bg-gradient-to-br from-gray-50 to-gray-100 relative">
+    <div className="flex flex-col h-full bg-white relative">
       <Header
         breadcrumbs={breadcrumbs}
         annotationEnabled={annotationEnabled}
