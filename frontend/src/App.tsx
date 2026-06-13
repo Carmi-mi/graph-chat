@@ -274,7 +274,7 @@ function App() {
       )}
 
       {/* Floating merge button */}
-      {canMerge && (
+      {canMerge && treeSidebarOpen && (
         <button
           onClick={() => setShowMergeModal(true)}
           className="fixed bottom-6 right-6 z-30 flex items-center gap-2 px-4 py-3 rounded-full bg-gradient-to-r from-[#667eea] to-[#764ba2] text-white text-sm font-medium shadow-lg hover:shadow-xl hover:opacity-90 transition-all"
