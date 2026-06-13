@@ -49,10 +49,10 @@ const TreeNode: React.FC<TreeNodeProps> = ({
           }`}
           style={{ paddingLeft: `${depth * 16 + 8}px` }}
         >
-          <span className="truncate">{node.name}</span>
           {isDirty && !isActive && (
-            <span className="ml-auto shrink-0 w-2 h-2 rounded-full bg-red-500" />
+            <span className="shrink-0 w-2 h-2 rounded-full bg-red-500" />
           )}
+          <span className="truncate">{node.name}</span>
         </button>
         <button
           onClick={(e) => {

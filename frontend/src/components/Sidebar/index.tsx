@@ -70,18 +70,18 @@ const Sidebar: React.FC<SidebarProps> = ({
               <div className="flex items-start gap-2">
                 <MessageSquare className="w-4 h-4 text-gray-400 mt-0.5 shrink-0" />
                 <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-1.5">
-                    <p className="text-sm font-medium text-gray-800 truncate">
-                      {conv.name}
-                    </p>
+                  <p className="text-sm font-medium text-gray-800 truncate">
+                    {conv.name}
+                  </p>
+
+                  <div className="flex items-center gap-1.5 mt-1">
                     {hasDirty && !isCurrent && (
                       <span className="shrink-0 w-2 h-2 rounded-full bg-red-500" />
                     )}
+                    <span className="text-xs text-gray-400">
+                      {formatDate(conv.createdAt)}
+                    </span>
                   </div>
-
-                  <span className="text-xs text-gray-400 mt-1">
-                    {formatDate(conv.createdAt)}
-                  </span>
                 </div>
               </div>
             </button>
