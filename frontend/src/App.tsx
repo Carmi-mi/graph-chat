@@ -230,7 +230,7 @@ function App() {
         <button
           type="button"
           onClick={toggleSidebar}
-          className="absolute top-3 left-3 z-40 p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors cursor-pointer"
+          className="absolute top-[10px] left-3 z-40 p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors cursor-pointer"
           title={sidebarOpen ? 'Close sidebar' : 'Open sidebar'}
         >
           {sidebarOpen ? (
@@ -245,7 +245,7 @@ function App() {
           <button
             type="button"
             onClick={toggleTreeSidebar}
-            className="absolute top-3 right-3 z-40 p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors cursor-pointer"
+            className="absolute top-[10px] right-3 z-40 p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors cursor-pointer"
             title={treeSidebarOpen ? 'Close tree sidebar' : 'Open tree sidebar'}
           >
             {treeSidebarOpen ? (

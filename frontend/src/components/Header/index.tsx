@@ -15,7 +15,7 @@ const Header: React.FC<HeaderProps> = ({
   onBreadcrumbClick,
 }) => {
   return (
-    <header className="sticky top-0 z-30 flex items-center px-3 min-h-[52px] bg-white/70 backdrop-blur-lg border-b border-gray-200/50">
+    <header className="sticky top-0 z-30 flex items-center pl-14 pr-12 min-h-[52px] bg-white/70 backdrop-blur-lg border-b border-gray-200/50">
       {breadcrumbs.length > 0 && (
         <nav className="flex items-center gap-1 text-sm text-gray-500 min-w-0">
           {breadcrumbs.map((item, index) => (
