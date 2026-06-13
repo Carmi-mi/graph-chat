@@ -239,10 +239,10 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
 
   return (
     <div className={`flex ${isUser ? 'justify-end' : 'justify-start'} mb-4`}>
-      <div className="relative">
+      <div className="inline-flex flex-col items-end gap-0.5">
         {/* Annotation match indicator */}
         {!isUser && matchInfo && matchInfo.total > 0 && (
-          <div className={`absolute -top-2 -right-2 z-10 px-1.5 py-0.5 rounded-full text-[10px] font-mono ${
+          <div className={`px-1.5 py-0.5 rounded-full text-[10px] font-mono ${
             matchInfo.matched === matchInfo.total
               ? 'bg-green-100 text-green-700 border border-green-300'
               : 'bg-red-100 text-red-700 border border-red-300'
@@ -252,7 +252,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
         )}
         <div
           ref={containerRef}
-          className={`max-w-[70%] px-4 py-3 rounded-2xl text-sm leading-relaxed ${
+          className={`max-w-[70vw] px-4 py-3 rounded-2xl text-sm leading-relaxed ${
             isUser
               ? 'bg-gradient-to-r from-[#667eea] to-[#764ba2] text-white rounded-br-md'
               : 'bg-white border border-gray-200 text-gray-800 rounded-bl-md shadow-sm'
