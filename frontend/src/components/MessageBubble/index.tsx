@@ -174,7 +174,7 @@ const markdownComponents: Components = {
     <blockquote className="border-l-2 border-[#667eea] bg-gray-50 py-1 px-3 rounded-r-lg my-2">{children}</blockquote>
   ),
   table: ({ children }) => (
-    <table className="border-collapse text-xs my-2">{children}</table>
+    <table className="border-collapse text-sm my-2">{children}</table>
   ),
   th: ({ children }) => (
     <th className="border border-gray-200 px-2 py-1 bg-gray-50 font-medium">{children}</th>
