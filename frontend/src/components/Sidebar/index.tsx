@@ -1,5 +1,5 @@
 import React from 'react';
-import { Plus, MessageSquare, Trash2 } from 'lucide-react';
+import { GitBranch, Plus, MessageSquare, Trash2 } from 'lucide-react';
 import type { Conversation } from '../../schemas';
 
 interface SidebarProps {
@@ -45,6 +45,12 @@ const Sidebar: React.FC<SidebarProps> = ({
     <div className="w-64 h-full flex flex-col bg-gray-50 border-r border-gray-200 relative z-10">
       {/* Header */}
       <div className="p-3">
+        <div className="flex items-center gap-2 mb-3">
+          <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-[#667eea] to-[#764ba2] flex items-center justify-center">
+            <GitBranch className="w-4 h-4 text-white" />
+          </div>
+          <span className="text-base font-semibold text-gray-800">Graph Chat</span>
+        </div>
         <button
           type="button"
           onClick={onCreate}

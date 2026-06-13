@@ -1,5 +1,5 @@
 import React from 'react';
-import { GitBranch, Sparkles } from 'lucide-react';
+import { Sparkles } from 'lucide-react';
 
 export interface BreadcrumbItem {
   id: string;
@@ -21,17 +21,8 @@ const Header: React.FC<HeaderProps> = ({
 }) => {
   return (
     <header className="sticky top-0 z-30 flex items-center justify-between px-3 min-h-[52px] bg-white/70 backdrop-blur-lg border-b border-gray-200/50">
-      {/* Left: Logo + Breadcrumb */}
+      {/* Left: Breadcrumb */}
       <div className="flex items-center gap-3 min-w-0">
-        <div className="flex items-center gap-2 shrink-0">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#667eea] to-[#764ba2] flex items-center justify-center">
-            <GitBranch className="w-4 h-4 text-white" />
-          </div>
-          <span className="text-lg font-semibold bg-gradient-to-r from-[#667eea] to-[#764ba2] bg-clip-text text-transparent">
-            Graph Chat
-          </span>
-        </div>
-
         {breadcrumbs.length > 0 && (
           <nav className="flex items-center gap-1 text-sm text-gray-500 min-w-0">
             {breadcrumbs.map((item, index) => (
