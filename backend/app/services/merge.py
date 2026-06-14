@@ -7,6 +7,7 @@ from app.core.exceptions import ConversationNotFound
 from app.models.merge_record import MergeRecord
 from app.repositories.conversation import ConversationRepository
 from app.repositories.message import MessageRepository
+from app.repositories.message_context_summary import MessageContextSummaryRepository
 from app.services.message import MessageService
 
 
@@ -50,6 +51,7 @@ class MergeService:
             sources[sid] = source
 
         source_set = set(source_ids)
+        summary_repo = MessageContextSummaryRepository(session=self.message_repo.session)
         conclusions: list[str] = []
         for sid in source_ids:
             source = sources[sid]
@@ -59,8 +61,10 @@ class MergeService:
             if source.parent_id and source.parent_id in source_set:
                 parent_src = sources[source.parent_id]
                 parts.append(f"(forked from: {parent_src.name})")
-            if source.context_summary:
-                parts.append(f"Summary: {source.context_summary}")
+            # Get latest context summary from new table
+            latest_summary = await summary_repo.get_latest_by_conversation(sid)
+            if latest_summary:
+                parts.append(f"Summary: {latest_summary.summary}")
             if assistant_msgs:
                 parts.append(f"Last response: {assistant_msgs[-1].content}")
             if parts:

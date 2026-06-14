@@ -47,7 +47,6 @@ def _serialize_conversation(conv) -> dict:
         "forkFrom": str(conv.fork_from) if conv.fork_from else None,
         "forkText": conv.fork_text,
         "autoExploring": conv.auto_exploring,
-        "contextSummary": conv.context_summary,
         "createdAt": conv.created_at.isoformat(),
         "updatedAt": conv.updated_at.isoformat(),
         "messages": [

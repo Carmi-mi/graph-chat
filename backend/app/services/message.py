@@ -17,6 +17,7 @@ from app.models.message_relation import MessageRelation
 from app.repositories.annotation import AnnotationRepository
 from app.repositories.conversation import ConversationRepository
 from app.repositories.message import MessageRepository
+from app.repositories.message_context_summary import MessageContextSummaryRepository
 from app.services.llm import ILLMProvider
 
 # Store background tasks to prevent garbage collection
@@ -81,12 +82,16 @@ class MessageService:
 
             # Generate annotations + update summary in background (non-blocking)
             if self._session_factory:
-                # For fork branches, inherit parent's summary as the starting point
-                summary_for_bg = conv.context_summary
+                # Get the latest context summary for this conversation (from new table)
+                summary_repo = MessageContextSummaryRepository(session=self.message_repo.session)
+                latest_summary = await summary_repo.get_latest_by_conversation(conversation_id)
+                summary_for_bg = latest_summary.summary if latest_summary else None
+
+                # For fork branches with no summary yet, inherit parent's latest summary
                 if not summary_for_bg and conv.parent_id:
-                    parent_conv = await self.conversation_repo.get(conv.parent_id)
-                    if parent_conv:
-                        summary_for_bg = parent_conv.context_summary
+                    parent_summary = await summary_repo.get_latest_by_conversation(conv.parent_id)
+                    if parent_summary:
+                        summary_for_bg = parent_summary.summary
 
                 # Commit messages BEFORE spawning background task to release
                 # SQLite write lock — otherwise the bg task's INSERT hits
@@ -170,20 +175,20 @@ class MessageService:
             except Exception:
                 logger.warning("annotation persist failed", exc_info=True)
 
-        # Persist summary (if succeeded)
+        # Persist summary to message_context_summaries (if succeeded)
         if isinstance(sum_result, Exception):
             logger.warning("summary LLM failed: %s", sum_result)
         elif isinstance(sum_result, str) and sum_result:
             try:
                 async with self._session_factory() as session:
-                    conv_repo = ConversationRepository(session=session)
-                    conv = await conv_repo.get(conversation_id)
-                    if conv:
-                        conv.context_summary = sum_result
-                        await session.commit()
-                        logger.info("summary persisted for conv %s: %s", conversation_id, sum_result[:80])
-                    else:
-                        logger.warning("summary persist skipped: conv %s not found", conversation_id)
+                    summary_repo = MessageContextSummaryRepository(session=session)
+                    await summary_repo.create(
+                        message_id=message_id,
+                        conversation_id=conversation_id,
+                        summary=sum_result,
+                    )
+                    await session.commit()
+                    logger.info("summary persisted for message %s in conv %s: %s", message_id, conversation_id, sum_result[:80])
             except Exception:
                 logger.warning("summary persist failed", exc_info=True)
         else:
@@ -240,7 +245,7 @@ class MessageService:
         """If this conversation is a fork, return parent context for the LLM prompt.
 
         Returns a system message containing:
-        - Parent conversation's context_summary (background of prior discussion)
+        - Context summary truncated at the source message (from message_context_summaries)
         - Full text of the source assistant message (the one user forked from)
         """
         conv = await self.conversation_repo.get(conversation_id)
@@ -267,14 +272,15 @@ class MessageService:
         if source_msg is None:
             return None
 
-        # Get parent conversation's context_summary
-        parent_conv = await self.conversation_repo.get(conv.parent_id)
-        summary = parent_conv.context_summary if parent_conv else None
+        # Get context summary truncated at the source message
+        summary_repo = MessageContextSummaryRepository(session=self.message_repo.session)
+        context_summary = await summary_repo.get_by_message(relation.parent_id)
+        summary = context_summary.summary if context_summary else None
 
         # Build context message
         parts = []
         if summary:
-            parts.append(f"以下是之前对话的背景摘要：\n{summary}")
+            parts.append(f"以下是截止到该回复之前的对话摘要：\n{summary}")
             logger.info("Fork context | summary=%s", summary[:100])
         parts.append(f"以下是用户展开分支所依据的原始回复：\n{source_msg.content}")
         logger.info("Fork context | source_msg=%s", source_msg.content[:100])
