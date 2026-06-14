@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Save, Loader2, Check } from 'lucide-react';
 import { getSettings, updateSettings, type Settings } from '../../api/settings';
+import { useUIStore } from '../../store';
 
 const SettingsPage: React.FC = () => {
-  const [settings, setSettings] = useState<Settings | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { cachedSettings, setCachedSettings } = useUIStore();
+  const [loading, setLoading] = useState(!cachedSettings);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -16,11 +17,21 @@ const SettingsPage: React.FC = () => {
   const [provider, setProvider] = useState('openai');
   const [maxDepth, setMaxDepth] = useState(2);
 
+  // Load from cache or fetch
   useEffect(() => {
+    if (cachedSettings) {
+      setApiKey(cachedSettings.openaiApiKey);
+      setBaseUrl(cachedSettings.openaiBaseUrl);
+      setModel(cachedSettings.openaiModel);
+      setProvider(cachedSettings.llmProvider);
+      setMaxDepth(cachedSettings.maxForkDepth);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     getSettings()
       .then((s) => {
-        setSettings(s);
+        setCachedSettings(s);
         setApiKey(s.openaiApiKey);
         setBaseUrl(s.openaiBaseUrl);
         setModel(s.openaiModel);
@@ -43,7 +54,7 @@ const SettingsPage: React.FC = () => {
         llmProvider: provider,
         maxForkDepth: maxDepth,
       });
-      setSettings(updated);
+      setCachedSettings(updated);
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
     } catch (err) {
@@ -51,7 +62,7 @@ const SettingsPage: React.FC = () => {
     } finally {
       setSaving(false);
     }
-  }, [apiKey, baseUrl, model, provider, maxDepth]);
+  }, [apiKey, baseUrl, model, provider, maxDepth, setCachedSettings]);
 
   if (loading) {
     return (

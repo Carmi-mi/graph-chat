@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import type { Settings } from '../api/settings';
 
 interface UIState {
   // State
@@ -8,6 +9,7 @@ interface UIState {
   annotationEnabled: boolean;
   settingsOpen: boolean;
   previousTreeSidebarOpen: boolean; // saved before opening settings
+  cachedSettings: Settings | null;
   exploringBranches: string[]; // branch IDs currently exploring
   dirtyBranches: Record<string, string[]>; // rootConversationId -> branch IDs with unseen messages
 
@@ -19,6 +21,7 @@ interface UIState {
   setAnnotationEnabled: (enabled: boolean) => void;
   toggleSettings: () => void;
   setSettingsOpen: (open: boolean) => void;
+  setCachedSettings: (settings: Settings | null) => void;
   addExploringBranch: (id: string) => void;
   removeExploringBranch: (id: string) => void;
   addDirtyBranch: (rootId: string, branchId: string) => void;
@@ -35,6 +38,7 @@ const useUIStore = create<UIState>()(
   annotationEnabled: true,
   settingsOpen: false,
   previousTreeSidebarOpen: true,
+  cachedSettings: null,
   exploringBranches: [],
   dirtyBranches: {},
 
@@ -70,6 +74,8 @@ const useUIStore = create<UIState>()(
       }
       return {};
     }),
+
+  setCachedSettings: (settings) => set({ cachedSettings: settings }),
 
   addExploringBranch: (id) =>
     set((state) => {
