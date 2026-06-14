@@ -5,6 +5,7 @@ import InputArea from '../InputArea';
 import SuggestionBar from '../SuggestionBar';
 import AgentIndicator from '../AgentIndicator';
 import AnnotationPopup from '../Annotation/Popup';
+import SettingsPage from '../SettingsPage';
 import { useConversationStore, useUIStore } from '../../store';
 import { useTextSelection } from '../../hooks/useTextSelection';
 import { handleMessageDelivered } from '../../services/messageUtils';
@@ -31,7 +32,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversationId, onNavigate }) =
     setError,
   } = useConversationStore();
 
-  const { annotationEnabled, exploringBranches, addExploringBranch, removeExploringBranch, toggleAnnotation } =
+  const { annotationEnabled, settingsOpen, exploringBranches, addExploringBranch, removeExploringBranch, toggleAnnotation } =
     useUIStore();
 
   const messageAreaRef = useRef<HTMLDivElement>(null);
@@ -427,6 +428,19 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversationId, onNavigate }) =
     const node = findNode(currentConversation);
     return { messages: node?.messages ?? [], forkText: node?.forkText ?? null };
   }, [currentConversation, currentBranchId]);
+
+  // When settings is open, show settings page instead of chat
+  if (settingsOpen) {
+    return (
+      <div className="flex flex-col h-full bg-white relative">
+        <Header
+          breadcrumbs={[{ id: 'settings', label: 'Settings' }]}
+          onBreadcrumbClick={() => {}}
+        />
+        <SettingsPage />
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col h-full bg-white relative">

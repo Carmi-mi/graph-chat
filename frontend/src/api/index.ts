@@ -3,3 +3,4 @@ export * from './conversation';
 export * from './message';
 export * from './agent';
 export * from './annotation';
+export * from './settings';

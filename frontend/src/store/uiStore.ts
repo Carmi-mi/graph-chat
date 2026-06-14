@@ -6,6 +6,8 @@ interface UIState {
   sidebarOpen: boolean;
   treeSidebarOpen: boolean;
   annotationEnabled: boolean;
+  settingsOpen: boolean;
+  previousTreeSidebarOpen: boolean; // saved before opening settings
   exploringBranches: string[]; // branch IDs currently exploring
   dirtyBranches: Record<string, string[]>; // rootConversationId -> branch IDs with unseen messages
 
@@ -15,6 +17,8 @@ interface UIState {
   toggleTreeSidebar: () => void;
   toggleAnnotation: () => void;
   setAnnotationEnabled: (enabled: boolean) => void;
+  toggleSettings: () => void;
+  setSettingsOpen: (open: boolean) => void;
   addExploringBranch: (id: string) => void;
   removeExploringBranch: (id: string) => void;
   addDirtyBranch: (rootId: string, branchId: string) => void;
@@ -29,6 +33,8 @@ const useUIStore = create<UIState>()(
   sidebarOpen: true,
   treeSidebarOpen: true,
   annotationEnabled: true,
+  settingsOpen: false,
+  previousTreeSidebarOpen: true,
   exploringBranches: [],
   dirtyBranches: {},
 
@@ -43,6 +49,27 @@ const useUIStore = create<UIState>()(
     set((state) => ({ annotationEnabled: !state.annotationEnabled })),
 
   setAnnotationEnabled: (enabled) => set({ annotationEnabled: enabled }),
+
+  toggleSettings: () =>
+    set((state) => {
+      if (state.settingsOpen) {
+        // Closing settings: restore tree sidebar
+        return { settingsOpen: false, treeSidebarOpen: state.previousTreeSidebarOpen };
+      }
+      // Opening settings: save tree sidebar and collapse it
+      return { settingsOpen: true, previousTreeSidebarOpen: state.treeSidebarOpen, treeSidebarOpen: false };
+    }),
+
+  setSettingsOpen: (open) =>
+    set((state) => {
+      if (open && !state.settingsOpen) {
+        return { settingsOpen: true, previousTreeSidebarOpen: state.treeSidebarOpen, treeSidebarOpen: false };
+      }
+      if (!open && state.settingsOpen) {
+        return { settingsOpen: false, treeSidebarOpen: state.previousTreeSidebarOpen };
+      }
+      return {};
+    }),
 
   addExploringBranch: (id) =>
     set((state) => {
@@ -98,6 +125,7 @@ const useUIStore = create<UIState>()(
         sidebarOpen: state.sidebarOpen,
         treeSidebarOpen: state.treeSidebarOpen,
         annotationEnabled: state.annotationEnabled,
+        settingsOpen: state.settingsOpen,
         dirtyBranches: state.dirtyBranches,
       }),
     },

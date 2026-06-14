@@ -1,5 +1,5 @@
 import React from 'react';
-import { GitBranch, Plus, MessageSquare, Trash2 } from 'lucide-react';
+import { GitBranch, Plus, MessageSquare, Trash2, Settings } from 'lucide-react';
 import type { Conversation } from '../../schemas';
 
 interface SidebarProps {
@@ -9,6 +9,8 @@ interface SidebarProps {
   onSelect: (id: string) => void;
   onCreate: () => void;
   onDelete: (id: string) => void;
+  onSettingsClick: () => void;
+  settingsOpen: boolean;
 }
 
 const Sidebar: React.FC<SidebarProps> = ({
@@ -18,6 +20,8 @@ const Sidebar: React.FC<SidebarProps> = ({
   onSelect,
   onCreate,
   onDelete,
+  onSettingsClick,
+  settingsOpen,
 }) => {
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr);
@@ -98,6 +102,22 @@ const Sidebar: React.FC<SidebarProps> = ({
           </div>
         );
         })}
+      </div>
+
+      {/* Settings button */}
+      <div className="p-2 border-t border-gray-200">
+        <button
+          type="button"
+          onClick={onSettingsClick}
+          className={`w-full flex items-center gap-2 px-3 py-2 rounded-xl text-sm transition-all cursor-pointer ${
+            settingsOpen
+              ? 'bg-[#667eea]/10 text-[#667eea] border border-[#667eea]/20'
+              : 'text-gray-500 hover:bg-gray-100 border border-transparent'
+          }`}
+        >
+          <Settings className="w-4 h-4" />
+          Settings
+        </button>
       </div>
     </div>
   );

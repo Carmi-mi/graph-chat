@@ -13,7 +13,7 @@ from app.core.exceptions import GraphChatException
 from app.dependencies import get_engine
 import app.models  # noqa: F401  -- triggers registration of all ORM models with Base.metadata
 from app.models.base import Base
-from app.routers import annotations, agent, conversations, messages
+from app.routers import annotations, agent, conversations, messages, settings_api
 
 
 @asynccontextmanager
@@ -64,6 +64,7 @@ def create_app() -> FastAPI:
     app.include_router(messages.router, prefix="/api")
     app.include_router(annotations.router, prefix="/api")
     app.include_router(agent.router, prefix="/api")
+    app.include_router(settings_api.router, prefix="/api")
 
     # Global exception handler for application exceptions
     @app.exception_handler(GraphChatException)

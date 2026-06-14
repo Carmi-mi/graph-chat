@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { GitMerge, PanelLeftClose, PanelLeft, PanelRightClose, PanelRight } from 'lucide-react';
 import Sidebar from './components/Sidebar';
 import ChatWindow from './components/ChatWindow';
@@ -28,11 +28,12 @@ function App() {
     setError,
   } = useConversationStore();
 
-  const { sidebarOpen, toggleSidebar, treeSidebarOpen, toggleTreeSidebar, dirtyBranches, removeDirtyBranch, clearDirtyBranches } = useUIStore();
+  const { sidebarOpen, toggleSidebar, treeSidebarOpen, toggleTreeSidebar, settingsOpen, toggleSettings, setSettingsOpen, dirtyBranches, removeDirtyBranch, clearDirtyBranches } = useUIStore();
 
   const [showMergeModal, setShowMergeModal] = useState(false);
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
   const [deleteBranchTargetId, setDeleteBranchTargetId] = useState<string | null>(null);
+  const prevConvRef = useRef<{ id: string; branchId: string | null } | null>(null);
 
   // Load conversation list on mount
   useEffect(() => {
@@ -53,6 +54,12 @@ function App() {
   // Select a conversation: use cache if available, otherwise fetch
   const handleSelectConversation = useCallback(
     async (id: string) => {
+      // Close settings if open (restores tree sidebar via setSettingsOpen)
+      if (useUIStore.getState().settingsOpen) {
+        setSettingsOpen(false);
+        prevConvRef.current = null; // Don't restore old conversation
+      }
+
       const cached = useConversationStore.getState().conversationCache[id];
 
       if (cached) {
@@ -78,7 +85,7 @@ function App() {
         setLoading(false);
       }
     },
-    [setCurrentConversation, setLoading, setError, removeDirtyBranch],
+    [setCurrentConversation, setLoading, setError, removeDirtyBranch, setSettingsOpen],
   );
 
   // Create a new conversation with a default name, then select it
@@ -222,6 +229,31 @@ function App() {
           onSelect={handleSelectConversation}
           onCreate={handleCreateConversation}
           onDelete={(id) => setDeleteTargetId(id)}
+          onSettingsClick={() => {
+            if (!settingsOpen) {
+              // Opening: save current conversation
+              const state = useConversationStore.getState();
+              prevConvRef.current = state.currentConversation
+                ? { id: state.currentConversation.id, branchId: state.currentBranchId }
+                : null;
+              setCurrentConversation(null);
+              setCurrentBranchId(null);
+              toggleSettings();
+            } else {
+              // Closing: restore previous conversation
+              toggleSettings();
+              const prev = prevConvRef.current;
+              prevConvRef.current = null;
+              if (prev) {
+                handleSelectConversation(prev.id).then(() => {
+                  if (prev.branchId) {
+                    setCurrentBranchId(prev.branchId);
+                  }
+                });
+              }
+            }
+          }}
+          settingsOpen={settingsOpen}
         />
       )}
 
@@ -241,7 +273,7 @@ function App() {
         </button>
 
         {/* Right sidebar toggle button */}
-        {hasChildren && (
+        {hasChildren && !settingsOpen && (
           <button
             type="button"
             onClick={toggleTreeSidebar}
@@ -263,7 +295,7 @@ function App() {
       </div>
 
       {/* Right sidebar: tree navigation (only when conversation has branches and sidebar is open) */}
-      {hasChildren && treeSidebarOpen && (
+      {hasChildren && treeSidebarOpen && !settingsOpen && (
         <TreeSidebar
           tree={currentConversation!}
           currentBranchId={currentBranchId}
@@ -274,7 +306,7 @@ function App() {
       )}
 
       {/* Floating merge button */}
-      {canMerge && treeSidebarOpen && (
+      {canMerge && treeSidebarOpen && !settingsOpen && (
         <button
           onClick={() => setShowMergeModal(true)}
           className="fixed bottom-6 right-6 z-30 flex items-center gap-2 px-4 py-3 rounded-full bg-gradient-to-r from-[#667eea] to-[#764ba2] text-white text-sm font-medium shadow-lg hover:shadow-xl hover:opacity-90 transition-all"
