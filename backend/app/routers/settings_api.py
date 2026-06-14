@@ -42,6 +42,11 @@ def _mask_key(key: str) -> str:
     return f"{key[:3]}...{key[-4:]}"
 
 
+def _is_masked_key(value: str) -> bool:
+    """Check if a value looks like a masked API key (not the real key)."""
+    return "..." in value
+
+
 def _read_env() -> dict[str, str]:
     """Parse .env file into a dict of key=value pairs."""
     env: dict[str, str] = {}
@@ -110,6 +115,9 @@ async def update_settings(body: SettingsUpdate) -> SettingsResponse:
     for alias, value in updates.items():
         env_key = _ALIAS_TO_KEY.get(alias)
         if env_key and env_key in _CONFIGURABLE_FIELDS:
+            # Skip masked API key to avoid overwriting the real key
+            if env_key == "OPENAI_API_KEY" and _is_masked_key(str(value)):
+                continue
             env[env_key] = str(value)
 
     _write_env(env)
