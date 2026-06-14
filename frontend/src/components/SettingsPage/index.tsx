@@ -132,12 +132,12 @@ const SettingsPage: React.FC = () => {
               <input
                 type="number"
                 min={1}
-                max={10}
-                value={maxDepth}
+                step={1}
+                value={maxDepth || ''}
                 onChange={(e) => setMaxDepth(Number(e.target.value))}
                 className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#667eea]/30 focus:border-[#667eea]"
               />
-              <p className="text-xs text-gray-400 mt-1">Maximum nesting depth for conversation branches (1-10)</p>
+              <p className="text-xs text-gray-400 mt-1">Maximum nesting depth for conversation branches</p>
             </div>
           </div>
         </section>
