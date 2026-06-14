@@ -375,6 +375,12 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversationId, onNavigate }) =
         }
         setCurrentBranchId(child.id);
 
+        // Inherit annotation state from parent branch, then reset parent
+        const uiState = useUIStore.getState();
+        const parentAnnotationState = uiState.annotationBranchStates[currentBranchId!] ?? false;
+        uiState.setAnnotationEnabled(child.id, parentAnnotationState);
+        uiState.setAnnotationEnabled(currentBranchId!, false);
+
         // Auto-send message in background to trigger LLM reply + annotations
         const fullSuggestion = suggestionDesc
           ? `${suggestionText}（${suggestionDesc}）`
@@ -383,17 +389,20 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversationId, onNavigate }) =
           conversationId: child.id,
           role: 'user',
           content: `关于「${selectedAnnotation.text}」，我想深入了解：${fullSuggestion}`,
-          skipAnnotations: !annotationEnabled,
+          skipAnnotations: !parentAnnotationState,
         }).then(async (resp) => {
-          setWaitingBranchId(null);
           const newMsgs = [resp.userMessage];
           if (resp.assistantMessage) newMsgs.push(resp.assistantMessage);
           handleMessageDelivered(conversationId, child.id, newMsgs);
 
           // Poll for annotations on the new assistant message
           const targetMsgId = resp.assistantMessage?.id;
-          if (targetMsgId && annotationEnabled) {
-            startAnnotationPoll(targetMsgId, conversationId, child.id);
+          if (targetMsgId && parentAnnotationState) {
+            startAnnotationPoll(targetMsgId, conversationId, child.id, () => {
+              setWaitingBranchId(null);
+            });
+          } else {
+            setWaitingBranchId(null);
           }
         }).catch(() => { setWaitingBranchId(null); });
       } catch (err) {
