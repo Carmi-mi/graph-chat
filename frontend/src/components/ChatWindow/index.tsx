@@ -88,14 +88,34 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversationId, onNavigate }) =
       annotationApi.getMessageAnnotations(targetMsgId).then((annotations) => {
         if (annotations.length > 0) {
           clearAnnotationPoll(targetMsgId);
+          // Always update the conversation cache regardless of current view
           const s = useConversationStore.getState();
+          const cached = s.conversationCache[pollConversationId];
+          if (cached) {
+            s.updateCachedConversation(pollConversationId, (conv) => {
+              const updateNode = (node: typeof conv): typeof conv => {
+                const updatedMessages = node.messages.map((m) =>
+                  m.id === targetMsgId ? { ...m, annotations } : m,
+                );
+                const updatedChildren = node.children.map(updateNode);
+                if (updatedMessages !== node.messages || updatedChildren !== node.children) {
+                  return { ...node, messages: updatedMessages, children: updatedChildren };
+                }
+                return node;
+              };
+              return updateNode(conv);
+            });
+          } else {
+            // Cache missing — fetch full conversation to populate cache
+            conversationApi.getConversation(pollConversationId).then((conv) => {
+              useConversationStore.getState().setCurrentConversation(conv);
+            }).catch(() => {});
+          }
+          // Show toast only if user is viewing this branch
           if (s.currentConversation?.id === pollConversationId && s.currentBranchId === pollBranchId) {
-            s.updateMessageAnnotations(targetMsgId, annotations);
             const elapsed = ((Date.now() - pollStart) / 1000).toFixed(0);
             setAnnotationToast(`成功生成标注，用时${elapsed}s`);
             setTimeout(() => setAnnotationToast(null), 5000);
-          } else {
-            useUIStore.getState().addDirtyBranch(pollConversationId, pollBranchId);
           }
         }
       }).catch(() => {});
