@@ -35,7 +35,7 @@ const useUIStore = create<UIState>()(
   // Initial state
   sidebarOpen: true,
   treeSidebarOpen: true,
-  annotationEnabled: true,
+  annotationEnabled: false,
   settingsOpen: false,
   previousTreeSidebarOpen: true,
   cachedSettings: null,
@@ -130,7 +130,6 @@ const useUIStore = create<UIState>()(
       partialize: (state) => ({
         sidebarOpen: state.sidebarOpen,
         treeSidebarOpen: state.treeSidebarOpen,
-        annotationEnabled: state.annotationEnabled,
         settingsOpen: state.settingsOpen,
         dirtyBranches: state.dirtyBranches,
       }),

@@ -90,6 +90,8 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversationId, onNavigate }) =
         if (annotations.length > 0) {
           clearAnnotationPoll(targetMsgId);
           onDone?.();
+          // Reset annotation toggle to off after generation completes
+          useUIStore.getState().setAnnotationEnabled(false);
           // Always update the conversation cache regardless of current view
           const s = useConversationStore.getState();
           const cached = s.conversationCache[pollConversationId];
