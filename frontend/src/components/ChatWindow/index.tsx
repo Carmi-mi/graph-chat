@@ -44,7 +44,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversationId, onNavigate }) =
   const [suggestions, setSuggestions] = useState<ForkSuggestion[]>([]);
   const [selectedAnnotation, setSelectedAnnotation] = useState<Annotation | null>(null);
   const [annotationPos, setAnnotationPos] = useState<{ x: number; y: number } | null>(null);
-  const [annotationToast, setAnnotationToast] = useState<string | null>(null);
+  const [annotationDone, setAnnotationDone] = useState(false);
 
   // Close annotation popup on outside click
   useEffect(() => {
@@ -112,11 +112,10 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversationId, onNavigate }) =
               useConversationStore.getState().setCurrentConversation(conv);
             }).catch(() => {});
           }
-          // Show toast only if user is viewing this branch
+          // Show status on annotation button if user is viewing this branch
           if (s.currentConversation?.id === pollConversationId && s.currentBranchId === pollBranchId) {
-            const elapsed = ((Date.now() - pollStart) / 1000).toFixed(0);
-            setAnnotationToast(`成功生成标注，用时${elapsed}s`);
-            setTimeout(() => setAnnotationToast(null), 5000);
+            setAnnotationDone(true);
+            setTimeout(() => setAnnotationDone(false), 5000);
           }
         }
       }).catch(() => {});
@@ -252,7 +251,6 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversationId, onNavigate }) =
       const sentFromConversationId = conversationId;
       const sentFromBranchId = currentBranchId;
       setWaitingBranchId(currentBranchId);
-      setAnnotationToast(null);
 
       // If this is the first user message in a forked branch, wrap with fork context
       let finalContent = content;
@@ -490,19 +488,13 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversationId, onNavigate }) =
         onExplore={handleExplore}
       />
 
-      {/* Annotation toast */}
-      {annotationToast && (
-        <div className={`mx-auto mb-2 px-3 py-1.5 rounded-lg text-xs ${annotationToast.includes('成功') ? 'bg-green-50 border border-green-200 text-green-600' : 'bg-amber-50 border border-amber-200 text-amber-600'}`}>
-          {annotationToast}
-        </div>
-      )}
-
       {/* Input area */}
       <InputArea
         onSend={handleSend}
         isLoading={waitingBranchId === currentBranchId || mergeWaitingBranchId === currentBranchId}
         disabled={!currentBranchId || isLoading || waitingBranchId === currentBranchId || mergeWaitingBranchId === currentBranchId}
         annotationEnabled={annotationEnabled}
+        annotationDone={annotationDone}
         onToggleAnnotation={toggleAnnotation}
       />
 

@@ -1,11 +1,12 @@
 import React, { useState, useCallback, useRef } from 'react';
-import { Send, Sparkles } from 'lucide-react';
+import { Send, Sparkles, Check } from 'lucide-react';
 
 interface InputAreaProps {
   onSend: (content: string) => void;
   isLoading?: boolean;
   disabled?: boolean;
   annotationEnabled?: boolean;
+  annotationDone?: boolean;
   onToggleAnnotation?: () => void;
 }
 
@@ -14,6 +15,7 @@ const InputArea: React.FC<InputAreaProps> = ({
   isLoading = false,
   disabled = false,
   annotationEnabled = true,
+  annotationDone = false,
   onToggleAnnotation,
 }) => {
   const [value, setValue] = useState('');
@@ -63,12 +65,18 @@ const InputArea: React.FC<InputAreaProps> = ({
           <button
             onClick={onToggleAnnotation}
             className={`flex items-center gap-1.5 h-8 px-2.5 rounded-lg text-xs font-medium transition-all ${
-              annotationEnabled
-                ? 'bg-[#667eea]/10 text-[#667eea]'
-                : 'text-gray-400 hover:text-gray-600 hover:bg-gray-50'
+              annotationDone
+                ? 'bg-green-50 text-green-600'
+                : annotationEnabled
+                  ? 'bg-[#667eea]/10 text-[#667eea]'
+                  : 'text-gray-400 hover:text-gray-600 hover:bg-gray-50'
             }`}
           >
-            <Sparkles className="w-3.5 h-3.5" />
+            {annotationDone ? (
+              <Check className="w-3.5 h-3.5" />
+            ) : (
+              <Sparkles className="w-3.5 h-3.5" />
+            )}
             <span>Annotations</span>
           </button>
           <button
