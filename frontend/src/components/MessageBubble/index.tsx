@@ -4,6 +4,13 @@ import remarkGfm from 'remark-gfm';
 import type { Components } from 'react-markdown';
 import type { Message, Annotation } from '../../schemas';
 
+/** Check if content looks like markdown rather than actual code */
+function looksLikeMarkdown(text: string): boolean {
+  const lines = text.trim().split('\n');
+  const mdLines = lines.filter((l: string) => /^\s*[-*]\s|^\s*\d+\.\s|^#{1,6}\s|\*\*|__/.test(l));
+  return mdLines.length >= 2 || (lines.length > 1 && mdLines.length > lines.length / 2);
+}
+
 /** Strip markdown syntax from text to get the rendered form */
 function stripMarkdown(text: string): string {
   return text
@@ -161,15 +168,40 @@ const markdownComponents: Components = {
   li: ({ children }) => <li className="my-0">{children}</li>,
   code: ({ children, className }) => {
     const isInline = !className;
-    return isInline ? (
-      <code className="text-gray-800 bg-gray-100 px-1 py-0.5 rounded text-xs">{children}</code>
-    ) : (
-      <code className={className}>{children}</code>
+    if (!isInline) return <code className={className}>{children}</code>;
+    const content = typeof children === 'string' ? children : String(children);
+    return (
+      <code className="text-gray-800 bg-gray-100 px-1 py-0.5 rounded text-[0.9em] font-sans">
+        <ReactMarkdown
+          remarkPlugins={[remarkGfm]}
+          allowedElements={['strong', 'em', 'del']}
+          unwrapDisallowed
+        >
+          {content}
+        </ReactMarkdown>
+      </code>
     );
   },
-  pre: ({ children }) => (
-    <pre className="bg-gray-50 p-2 rounded-lg overflow-x-auto my-2 text-xs">{children}</pre>
-  ),
+  pre: ({ children, ...props }) => {
+    // Try to extract raw text from the <code> child
+    let raw = '';
+    React.Children.forEach(children, (child) => {
+      if (React.isValidElement(child)) {
+        const p = child.props as Record<string, unknown>;
+        if (typeof p.children === 'string') raw = p.children;
+      }
+    });
+    if (raw && looksLikeMarkdown(raw)) {
+      return (
+        <div className="bg-gray-50 border border-gray-100 p-4 rounded-xl my-2 text-base leading-relaxed">
+          <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+            {raw.replace(/^#{1,6}\s/gm, '')}
+          </ReactMarkdown>
+        </div>
+      );
+    }
+    return <pre className="bg-gray-50 p-2 rounded-lg overflow-x-auto my-2 text-xs" {...props}>{children}</pre>;
+  },
   blockquote: ({ children }) => (
     <blockquote className="border-l-2 border-gray-300 bg-gray-50 py-1 px-3 rounded-r-lg my-2">{children}</blockquote>
   ),
