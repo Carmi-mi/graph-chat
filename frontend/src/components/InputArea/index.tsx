@@ -49,8 +49,8 @@ const InputArea: React.FC<InputAreaProps> = ({
   }, []);
 
   return (
-    <div className="px-4 py-3 bg-white/50 backdrop-blur-sm">
-      <div className="max-w-3xl mx-auto rounded-xl border border-gray-200 bg-white overflow-hidden">
+    <div className="px-4 py-3">
+      <div className="max-w-3xl mx-auto rounded-xl border border-gray-200 overflow-hidden">
         <textarea
           ref={textareaRef}
           value={value}
