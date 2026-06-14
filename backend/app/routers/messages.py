@@ -27,6 +27,7 @@ async def create_message(
         conversation_id=body.conversation_id,
         role=body.role,
         content=body.content,
+        skip_annotations=body.skip_annotations,
     )
     result = {
         "userMessage": MessageResponse.model_validate(user_msg).model_dump(by_alias=True),

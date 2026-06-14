@@ -5,7 +5,6 @@ import MessageBubble from '../MessageBubble';
 interface MessageListProps {
   messages: Message[];
   forkText?: string | null;
-  annotationEnabled: boolean;
   onAnnotationClick?: (annotation: Annotation, x: number, y: number) => void;
   onTextSelect?: (messageId: string, selectedText: string, startOffset: number, endOffset: number) => void;
 }
@@ -13,7 +12,6 @@ interface MessageListProps {
 const MessageList: React.FC<MessageListProps> = ({
   messages,
   forkText,
-  annotationEnabled,
   onAnnotationClick,
   onTextSelect,
 }) => {
@@ -55,7 +53,6 @@ const MessageList: React.FC<MessageListProps> = ({
           <MessageBubble
             key={message.id}
             message={message}
-            annotationEnabled={annotationEnabled}
             onAnnotationClick={onAnnotationClick}
             onTextSelect={onTextSelect}
           />

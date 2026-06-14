@@ -81,7 +81,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversationId, onNavigate }) =
     }
   }, []);
 
-  const startAnnotationPoll = useCallback((targetMsgId: string, pollConversationId: string, pollBranchId: string) => {
+  const startAnnotationPoll = useCallback((targetMsgId: string, pollConversationId: string, pollBranchId: string, onDone?: () => void) => {
     clearAnnotationPoll(targetMsgId);
 
     const pollStart = Date.now();
@@ -89,6 +89,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversationId, onNavigate }) =
       annotationApi.getMessageAnnotations(targetMsgId).then((annotations) => {
         if (annotations.length > 0) {
           clearAnnotationPoll(targetMsgId);
+          onDone?.();
           // Always update the conversation cache regardless of current view
           const s = useConversationStore.getState();
           const cached = s.conversationCache[pollConversationId];
@@ -123,6 +124,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversationId, onNavigate }) =
 
     const timeout = setTimeout(() => {
       clearAnnotationPoll(targetMsgId);
+      onDone?.();
     }, 180000);
 
     pollMapRef.current.set(targetMsgId, { interval, timeout, conversationId: pollConversationId, branchId: pollBranchId });
@@ -277,8 +279,8 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversationId, onNavigate }) =
           conversationId: currentBranchId,
           role: 'user',
           content: finalContent,
+          skipAnnotations: !annotationEnabled,
         });
-        setWaitingBranchId(null);
 
         const newMsgs = [response.userMessage];
         if (response.assistantMessage) newMsgs.push(response.assistantMessage);
@@ -286,15 +288,20 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversationId, onNavigate }) =
 
         // Poll for annotations on the specific assistant message just created
         const targetMsgId = response.assistantMessage?.id;
-        if (targetMsgId) {
-          startAnnotationPoll(targetMsgId, sentFromConversationId, sentFromBranchId);
+        if (targetMsgId && annotationEnabled) {
+          // Keep loading state until annotation polling completes or times out
+          startAnnotationPoll(targetMsgId, sentFromConversationId, sentFromBranchId, () => {
+            setWaitingBranchId(null);
+          });
+        } else {
+          setWaitingBranchId(null);
         }
       } catch (err) {
         setWaitingBranchId(null);
         setError(err instanceof Error ? err.message : 'Failed to send message');
       }
     },
-    [conversationId, currentBranchId, setError, startAnnotationPoll],
+    [conversationId, currentBranchId, setError, startAnnotationPoll, annotationEnabled],
   );
 
   const handleExplore = useCallback(
@@ -372,6 +379,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversationId, onNavigate }) =
           conversationId: child.id,
           role: 'user',
           content: `关于「${selectedAnnotation.text}」，我想深入了解：${fullSuggestion}`,
+          skipAnnotations: !annotationEnabled,
         }).then(async (resp) => {
           setWaitingBranchId(null);
           const newMsgs = [resp.userMessage];
@@ -380,7 +388,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversationId, onNavigate }) =
 
           // Poll for annotations on the new assistant message
           const targetMsgId = resp.assistantMessage?.id;
-          if (targetMsgId) {
+          if (targetMsgId && annotationEnabled) {
             startAnnotationPoll(targetMsgId, conversationId, child.id);
           }
         }).catch(() => { setWaitingBranchId(null); });
@@ -388,7 +396,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversationId, onNavigate }) =
         setError(err instanceof Error ? err.message : 'Failed to create branch');
       }
     },
-    [selectedAnnotation, conversationId, currentBranchId, setError, startAnnotationPoll],
+    [selectedAnnotation, conversationId, currentBranchId, setError, startAnnotationPoll, annotationEnabled],
   );
 
   const handleAnnotationAsk = useCallback(
@@ -460,7 +468,6 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversationId, onNavigate }) =
         <MessageList
           messages={messages}
           forkText={forkText}
-          annotationEnabled={annotationEnabled}
           onAnnotationClick={handleAnnotationClick}
           onTextSelect={handleTextSelect}
         />

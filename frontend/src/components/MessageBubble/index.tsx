@@ -153,7 +153,6 @@ function applyAnnotationHighlights(
 
 interface MessageBubbleProps {
   message: Message;
-  annotationEnabled: boolean;
   onAnnotationClick?: (annotation: Annotation, x: number, y: number) => void;
   onTextSelect?: (messageId: string, selectedText: string, startOffset: number, endOffset: number) => void;
 }
@@ -223,7 +222,6 @@ const markdownComponents: Components = {
 
 const MessageBubble: React.FC<MessageBubbleProps> = ({
   message,
-  annotationEnabled,
   onAnnotationClick,
   onTextSelect,
 }) => {
@@ -246,13 +244,13 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
 
   // Apply annotation highlights via DOM post-processing
   useEffect(() => {
-    if (!annotationEnabled || !message.annotations.length || !containerRef.current || !onAnnotationClick) {
+    if (!message.annotations.length || !containerRef.current || !onAnnotationClick) {
       setMatchInfo(null);
       return;
     }
     const result = applyAnnotationHighlights(containerRef.current, message.content, message.annotations, onAnnotationClick);
     setMatchInfo(result);
-  }, [message.content, message.annotations, annotationEnabled, onAnnotationClick]);
+  }, [message.content, message.annotations, onAnnotationClick]);
 
   const isUser = message.role === 'user';
   const isSystem = message.role === 'system';

@@ -19,6 +19,7 @@ export interface SendMessageRequest {
   conversationId: string;
   role: 'user';
   content: string;
+  skipAnnotations?: boolean;
 }
 
 export interface SendMessageResponse {

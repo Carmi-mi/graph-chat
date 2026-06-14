@@ -12,6 +12,7 @@ class MessageCreate(BaseModel):
     conversation_id: UUID = Field(..., alias="conversationId")
     role: str = Field(..., examples=["user", "assistant"])
     content: str = Field(..., min_length=1)
+    skip_annotations: bool = Field(False, alias="skipAnnotations")
 
 
 class MessageResponse(BaseModel):
