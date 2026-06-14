@@ -167,10 +167,8 @@ const useConversationStore = create<ConversationState>()(
       name: 'graphchat-conversation-store',
       partialize: (state) => ({
         conversations: state.conversations,
-        currentConversation: state.currentConversation,
         currentBranchId: state.currentBranchId,
         conversationBranchMap: state.conversationBranchMap,
-        conversationCache: state.conversationCache,
       }),
     },
   ),
