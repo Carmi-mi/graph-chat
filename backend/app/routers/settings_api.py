@@ -6,7 +6,8 @@ from pathlib import Path
 from fastapi import APIRouter
 
 from app.core.config import get_settings
-from app.schemas.settings import SettingsResponse, SettingsUpdate
+from app.schemas.settings import SettingsResponse, SettingsUpdate, SettingsTestRequest, SettingsTestResponse
+from app.services.llm import OpenAIProvider
 
 router = APIRouter(prefix="/settings", tags=["settings"])
 
@@ -134,3 +135,30 @@ async def update_settings(body: SettingsUpdate) -> SettingsResponse:
         llm_provider=settings.LLM_PROVIDER,
         max_fork_depth=settings.MAX_FORK_DEPTH,
     )
+
+
+@router.post("/test", response_model=SettingsTestResponse)
+async def test_llm_connection(body: SettingsTestRequest) -> SettingsTestResponse:
+    """Test LLM connection with provided or current settings."""
+    api_key = body.openai_api_key
+    base_url = body.openai_base_url
+    model = body.openai_model
+
+    # Fall back to saved settings for masked/missing values
+    settings = get_settings()
+    if not api_key or _is_masked_key(api_key):
+        api_key = settings.OPENAI_API_KEY
+    if not base_url:
+        base_url = settings.OPENAI_BASE_URL
+    if not model:
+        model = settings.OPENAI_MODEL
+
+    provider = OpenAIProvider(api_key=api_key, model=model, base_url=base_url)
+    try:
+        reply = await provider.complete(
+            [{"role": "user", "content": "Say 'ok' in one word."}],
+            scenario="settings_test",
+        )
+        return SettingsTestResponse(success=True, message=f"连接成功，模型回复：{reply[:50]}")
+    except Exception as exc:
+        return SettingsTestResponse(success=False, message=f"连接失败：{exc}")

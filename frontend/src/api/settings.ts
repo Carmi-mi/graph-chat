@@ -15,3 +15,12 @@ export async function getSettings(): Promise<Settings> {
 export async function updateSettings(data: Partial<Settings>): Promise<Settings> {
   return client.put('/api/settings', data);
 }
+
+export interface TestResult {
+  success: boolean;
+  message: string;
+}
+
+export async function testConnection(data: { openaiApiKey?: string; openaiBaseUrl?: string; openaiModel?: string }): Promise<TestResult> {
+  return client.post('/api/settings/test', data);
+}

@@ -1,21 +1,21 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Save, Loader2, Check } from 'lucide-react';
-import { getSettings, updateSettings, type Settings } from '../../api/settings';
+import { Save, Loader2, Check, XCircle } from 'lucide-react';
+import { getSettings, updateSettings, testConnection, type Settings } from '../../api/settings';
 import { useUIStore } from '../../store';
 
 const SettingsPage: React.FC = () => {
   const { cachedSettings, setCachedSettings } = useUIStore();
   const [loading, setLoading] = useState(!cachedSettings);
   const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'success' | 'fail'>('idle');
   const [error, setError] = useState<string | null>(null);
 
   // Form state
   const [apiKey, setApiKey] = useState('');
   const [baseUrl, setBaseUrl] = useState('');
   const [model, setModel] = useState('');
-  const [provider, setProvider] = useState('openai');
-  const [maxDepth, setMaxDepth] = useState(2);
+  const [provider, setProvider] = useState('');
+  const [maxDepth, setMaxDepth] = useState(0);
 
   // Load from cache or fetch
   useEffect(() => {
@@ -45,7 +45,7 @@ const SettingsPage: React.FC = () => {
   const handleSave = useCallback(async () => {
     setSaving(true);
     setError(null);
-    setSaved(false);
+    setSaveStatus('idle');
     try {
       const updated = await updateSettings({
         openaiApiKey: apiKey,
@@ -55,8 +55,11 @@ const SettingsPage: React.FC = () => {
         maxForkDepth: maxDepth,
       });
       setCachedSettings(updated);
-      setSaved(true);
-      setTimeout(() => setSaved(false), 3000);
+
+      // Test connection with saved values
+      const result = await testConnection({});
+      setSaveStatus(result.success ? 'success' : 'fail');
+      setTimeout(() => setSaveStatus('idle'), 3000);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save settings');
     } finally {
@@ -86,7 +89,6 @@ const SettingsPage: React.FC = () => {
                 value={apiKey}
                 onChange={(e) => setApiKey(e.target.value)}
                 className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#667eea]/30 focus:border-[#667eea]"
-                placeholder="sk-..."
               />
             </div>
             <div>
@@ -96,7 +98,6 @@ const SettingsPage: React.FC = () => {
                 value={baseUrl}
                 onChange={(e) => setBaseUrl(e.target.value)}
                 className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#667eea]/30 focus:border-[#667eea]"
-                placeholder="https://api.openai.com"
               />
             </div>
             <div>
@@ -106,18 +107,17 @@ const SettingsPage: React.FC = () => {
                 value={model}
                 onChange={(e) => setModel(e.target.value)}
                 className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#667eea]/30 focus:border-[#667eea]"
-                placeholder="gpt-4"
+                placeholder=""
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-600 mb-1.5">Provider</label>
+              <label className="block text-sm font-medium text-gray-600 mb-1.5">API Format</label>
               <select
                 value={provider}
                 onChange={(e) => setProvider(e.target.value)}
                 className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#667eea]/30 focus:border-[#667eea] bg-white"
               >
-                <option value="openai">OpenAI (compatible)</option>
-                <option value="mock">Mock (for testing)</option>
+                <option value="openai">OpenAI API</option>
               </select>
             </div>
           </div>
@@ -142,33 +142,31 @@ const SettingsPage: React.FC = () => {
           </div>
         </section>
 
-        {/* Error / Success */}
+        {/* Error */}
         {error && (
           <div className="px-4 py-2.5 rounded-lg bg-red-50 border border-red-200 text-sm text-red-600">
             {error}
           </div>
         )}
-        {saved && (
-          <div className="px-4 py-2.5 rounded-lg bg-green-50 border border-green-200 text-sm text-green-600 flex items-center gap-2">
-            <Check className="w-4 h-4" />
-            Settings saved
-          </div>
-        )}
 
         {/* Save button */}
-        <button
-          type="button"
-          onClick={handleSave}
-          disabled={saving}
-          className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#667eea] to-[#764ba2] text-white text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50 cursor-pointer"
-        >
-          {saving ? (
-            <Loader2 className="w-4 h-4 animate-spin" />
-          ) : (
-            <Save className="w-4 h-4" />
-          )}
-          Save
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={saving}
+            className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#667eea] to-[#764ba2] text-white text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50 cursor-pointer"
+          >
+            {saving ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Save className="w-4 h-4" />
+            )}
+            Save
+          </button>
+          {saveStatus === 'success' && <Check className="w-5 h-5 text-green-500" />}
+          {saveStatus === 'fail' && <XCircle className="w-5 h-5 text-red-500" />}
+        </div>
       </div>
     </div>
   );

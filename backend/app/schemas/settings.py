@@ -25,3 +25,20 @@ class SettingsUpdate(BaseModel):
     max_fork_depth: int | None = Field(None, alias="maxForkDepth")
 
     model_config = {"populate_by_name": True}
+
+
+class SettingsTestRequest(BaseModel):
+    """Request body for testing LLM connection."""
+
+    openai_api_key: str | None = Field(None, alias="openaiApiKey")
+    openai_base_url: str | None = Field(None, alias="openaiBaseUrl")
+    openai_model: str | None = Field(None, alias="openaiModel")
+
+    model_config = {"populate_by_name": True}
+
+
+class SettingsTestResponse(BaseModel):
+    """Response body for LLM connection test."""
+
+    success: bool
+    message: str
