@@ -32,8 +32,10 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversationId, onNavigate }) =
     setError,
   } = useConversationStore();
 
-  const { annotationEnabled, settingsOpen, exploringBranches, addExploringBranch, removeExploringBranch, toggleAnnotation } =
+  const { annotationBranchStates, settingsOpen, exploringBranches, addExploringBranch, removeExploringBranch, toggleAnnotation } =
     useUIStore();
+
+  const annotationEnabled = currentBranchId ? (annotationBranchStates[currentBranchId] ?? false) : false;
 
   const messageAreaRef = useRef<HTMLDivElement>(null);
   const popupRef = useRef<HTMLDivElement>(null);
@@ -91,7 +93,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversationId, onNavigate }) =
           clearAnnotationPoll(targetMsgId);
           onDone?.();
           // Reset annotation toggle to off after generation completes
-          useUIStore.getState().setAnnotationEnabled(false);
+          useUIStore.getState().setAnnotationEnabled(pollBranchId, false);
           // Always update the conversation cache regardless of current view
           const s = useConversationStore.getState();
           const cached = s.conversationCache[pollConversationId];
@@ -504,7 +506,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversationId, onNavigate }) =
         disabled={!currentBranchId || isLoading || waitingBranchId === currentBranchId || mergeWaitingBranchId === currentBranchId}
         annotationEnabled={annotationEnabled}
         annotationDone={annotationDone}
-        onToggleAnnotation={toggleAnnotation}
+        onToggleAnnotation={() => currentBranchId && toggleAnnotation(currentBranchId)}
       />
 
       {/* Annotation popup — edge-aware positioning computed in handleAnnotationClick */}

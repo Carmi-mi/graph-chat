@@ -6,7 +6,7 @@ interface UIState {
   // State
   sidebarOpen: boolean;
   treeSidebarOpen: boolean;
-  annotationEnabled: boolean;
+  annotationBranchStates: Record<string, boolean>; // per-branch annotation toggle
   settingsOpen: boolean;
   previousTreeSidebarOpen: boolean; // saved before opening settings
   cachedSettings: Settings | null;
@@ -17,8 +17,9 @@ interface UIState {
   toggleSidebar: () => void;
   setSidebarOpen: (open: boolean) => void;
   toggleTreeSidebar: () => void;
-  toggleAnnotation: () => void;
-  setAnnotationEnabled: (enabled: boolean) => void;
+  toggleAnnotation: (branchId: string) => void;
+  setAnnotationEnabled: (branchId: string, enabled: boolean) => void;
+  isAnnotationEnabled: (branchId: string) => boolean;
   toggleSettings: () => void;
   setSettingsOpen: (open: boolean) => void;
   setCachedSettings: (settings: Settings | null) => void;
@@ -31,11 +32,11 @@ interface UIState {
 
 const useUIStore = create<UIState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
   // Initial state
   sidebarOpen: true,
   treeSidebarOpen: true,
-  annotationEnabled: false,
+  annotationBranchStates: {},
   settingsOpen: false,
   previousTreeSidebarOpen: true,
   cachedSettings: null,
@@ -49,10 +50,23 @@ const useUIStore = create<UIState>()(
 
   toggleTreeSidebar: () => set((state) => ({ treeSidebarOpen: !state.treeSidebarOpen })),
 
-  toggleAnnotation: () =>
-    set((state) => ({ annotationEnabled: !state.annotationEnabled })),
+  toggleAnnotation: (branchId) =>
+    set((state) => ({
+      annotationBranchStates: {
+        ...state.annotationBranchStates,
+        [branchId]: !state.annotationBranchStates[branchId],
+      },
+    })),
 
-  setAnnotationEnabled: (enabled) => set({ annotationEnabled: enabled }),
+  setAnnotationEnabled: (branchId, enabled) =>
+    set((state) => ({
+      annotationBranchStates: {
+        ...state.annotationBranchStates,
+        [branchId]: enabled,
+      },
+    })),
+
+  isAnnotationEnabled: (branchId) => get().annotationBranchStates[branchId] ?? false,
 
   toggleSettings: () =>
     set((state) => {
@@ -130,6 +144,7 @@ const useUIStore = create<UIState>()(
       partialize: (state) => ({
         sidebarOpen: state.sidebarOpen,
         treeSidebarOpen: state.treeSidebarOpen,
+        annotationBranchStates: state.annotationBranchStates,
         settingsOpen: state.settingsOpen,
         dirtyBranches: state.dirtyBranches,
       }),
