@@ -269,7 +269,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
 
   return (
     <div data-role={message.role} className={`flex ${isUser ? 'justify-end' : 'justify-start'} mb-4`}>
-      <div className="inline-flex flex-col items-start gap-0.5">
+      <div className={`${message.nodeType === 'merge' ? 'w-full' : 'inline-flex'} flex-col items-start gap-0.5`}>
         {/* Annotation match indicator */}
         {!isUser && matchInfo && matchInfo.total > 0 && (
           <div className={`px-1.5 py-0.5 rounded-full text-[10px] font-mono ${
@@ -282,15 +282,26 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
         )}
         <div
           ref={containerRef}
-          className={`${isUser ? 'max-w-[480px] bg-gray-100 text-gray-800 rounded-2xl rounded-br-md px-4 py-3' : 'max-w-[800px] text-gray-800'} text-base leading-relaxed`}
+          className={`${
+            isUser
+              ? 'max-w-[480px] bg-gray-100 text-gray-800 rounded-2xl rounded-br-md px-4 py-3'
+              : message.nodeType === 'merge'
+              ? 'w-full max-w-[736px] box-border border border-gray-200 rounded-2xl px-4 py-3 pt-6 text-gray-800 relative my-4'
+              : 'max-w-[800px] text-gray-800'
+          } text-base leading-relaxed`}
           onMouseUp={handleMouseUp}
         >
           {isUser ? (
             <span>{message.content}</span>
           ) : (
-            <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
-              {message.content}
-            </ReactMarkdown>
+            <>
+              {message.nodeType === 'merge' && (
+                <div className="absolute top-0 left-3 -translate-y-1/2 bg-white px-2 text-xs font-semibold text-black">Merge</div>
+              )}
+              <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+                {message.content}
+              </ReactMarkdown>
+            </>
           )}
         </div>
       </div>
