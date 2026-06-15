@@ -6,6 +6,7 @@ interface ConversationState {
   // State
   conversations: Conversation[];
   currentConversation: ConversationWithTree | null;
+  currentConversationId: string | null; // persisted for reload
   currentBranchId: string | null;
   conversationBranchMap: Record<string, string>; // conversationId → last branchId
   conversationCache: Record<string, ConversationWithTree>; // conversationId → full tree cache
@@ -16,6 +17,7 @@ interface ConversationState {
   // Actions
   setConversations: (conversations: Conversation[]) => void;
   setCurrentConversation: (conversation: ConversationWithTree | null) => void;
+  setCurrentConversationId: (id: string | null) => void;
   setCurrentBranchId: (id: string | null) => void;
   updateBranchMessages: (branchId: string, messages: Message[]) => void;
   insertChildNode: (parentId: string, child: ConversationWithTree) => void;
@@ -34,6 +36,7 @@ const useConversationStore = create<ConversationState>()(
       // Initial state
       conversations: [],
       currentConversation: null,
+      currentConversationId: null,
       currentBranchId: null,
       conversationBranchMap: {},
       conversationCache: {},
@@ -62,11 +65,14 @@ const useConversationStore = create<ConversationState>()(
             : null;
           return {
             currentConversation: conversation,
+            currentConversationId: conversation?.id ?? null,
             currentBranchId: newBranchId,
             conversationBranchMap: map,
             conversationCache: cache,
           };
         }),
+
+      setCurrentConversationId: (id) => set({ currentConversationId: id }),
 
       setCurrentBranchId: (id) =>
         set((state) => {
@@ -167,6 +173,7 @@ const useConversationStore = create<ConversationState>()(
       name: 'graphchat-conversation-store',
       partialize: (state) => ({
         conversations: state.conversations,
+        currentConversationId: state.currentConversationId,
         currentBranchId: state.currentBranchId,
         conversationBranchMap: state.conversationBranchMap,
       }),

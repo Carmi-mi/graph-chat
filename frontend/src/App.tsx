@@ -18,6 +18,7 @@ function App() {
   const {
     conversations,
     currentConversation,
+    currentConversationId,
     currentBranchId,
     waitingBranchId,
     setConversations,
@@ -35,13 +36,17 @@ function App() {
   const [deleteBranchTargetId, setDeleteBranchTargetId] = useState<string | null>(null);
   const prevConvRef = useRef<{ id: string; branchId: string | null } | null>(null);
 
-  // Load conversation list on mount
+  // Load conversation list on mount and restore last selected conversation
   useEffect(() => {
     const loadConversations = async () => {
       setLoading(true);
       try {
         const response = await conversationApi.listConversations();
         setConversations(response.items);
+        // Restore last selected conversation if it exists in the list
+        if (currentConversationId && response.items.some(c => c.id === currentConversationId)) {
+          await handleSelectConversation(currentConversationId);
+        }
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load conversations');
       } finally {
@@ -49,7 +54,7 @@ function App() {
       }
     };
     loadConversations();
-  }, [setConversations, setLoading, setError]);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Select a conversation: use cache if available, otherwise fetch
   const handleSelectConversation = useCallback(
