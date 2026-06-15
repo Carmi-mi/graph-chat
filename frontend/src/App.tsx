@@ -296,6 +296,11 @@ function App() {
         <ChatWindow
           conversationId={currentConversation?.id ?? null}
           onNavigate={handleNavigate}
+          onConversationCreated={async (created) => {
+            const response = await conversationApi.listConversations();
+            setConversations(response.items);
+            await handleSelectConversation(created.id);
+          }}
         />
       </div>
 

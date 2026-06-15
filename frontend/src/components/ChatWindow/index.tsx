@@ -13,14 +13,15 @@ import * as conversationApi from '../../api/conversation';
 import * as messageApi from '../../api/message';
 import * as agentApi from '../../api/agent';
 import * as annotationApi from '../../api/annotation';
-import type { Annotation, ForkSuggestion, ConversationWithTree } from '../../schemas';
+import type { Annotation, ForkSuggestion, ConversationWithTree, Conversation } from '../../schemas';
 
 interface ChatWindowProps {
   conversationId: string | null;
   onNavigate?: (id: string) => void;
+  onConversationCreated?: (conversation: Conversation) => void;
 }
 
-const ChatWindow: React.FC<ChatWindowProps> = ({ conversationId, onNavigate }) => {
+const ChatWindow: React.FC<ChatWindowProps> = ({ conversationId, onNavigate, onConversationCreated }) => {
   const {
     currentConversation,
     currentBranchId,
@@ -253,10 +254,26 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversationId, onNavigate }) =
 
   const handleSend = useCallback(
     async (content: string) => {
-      if (!currentBranchId || !conversationId) return;
-      const sentFromConversationId = conversationId;
-      const sentFromBranchId = currentBranchId;
-      setWaitingBranchId(currentBranchId);
+      let activeConversationId = conversationId;
+      let activeBranchId = currentBranchId;
+
+      // Auto-create conversation when none exists
+      if (!activeConversationId || !activeBranchId) {
+        try {
+          const name = content.length > 50 ? content.slice(0, 50) + '…' : content;
+          const created = await conversationApi.createConversation(name);
+          activeConversationId = created.id;
+          activeBranchId = created.id;
+          onConversationCreated?.(created);
+        } catch (err) {
+          setError(err instanceof Error ? err.message : 'Failed to create conversation');
+          return;
+        }
+      }
+
+      const sentFromConversationId = activeConversationId;
+      const sentFromBranchId = activeBranchId;
+      setWaitingBranchId(activeBranchId);
 
       // If this is the first user message in a forked branch, wrap with fork context
       let finalContent = content;
@@ -280,7 +297,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversationId, onNavigate }) =
 
       try {
         const response = await messageApi.sendMessage({
-          conversationId: currentBranchId,
+          conversationId: activeBranchId,
           role: 'user',
           content: finalContent,
           skipAnnotations: !annotationEnabled,
@@ -511,8 +528,8 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversationId, onNavigate }) =
       {/* Input area */}
       <InputArea
         onSend={handleSend}
-        isLoading={waitingBranchId === currentBranchId || mergeWaitingBranchId === currentBranchId}
-        disabled={!currentBranchId || isLoading || waitingBranchId === currentBranchId || mergeWaitingBranchId === currentBranchId}
+        isLoading={!!currentBranchId && (waitingBranchId === currentBranchId || mergeWaitingBranchId === currentBranchId)}
+        disabled={isLoading || (!!currentBranchId && (waitingBranchId === currentBranchId || mergeWaitingBranchId === currentBranchId))}
         annotationEnabled={annotationEnabled}
         annotationDone={annotationDone}
         onToggleAnnotation={() => currentBranchId && toggleAnnotation(currentBranchId)}
