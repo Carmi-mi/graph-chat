@@ -8,8 +8,16 @@ from app.models.merge_record import MergeRecord
 from app.repositories.conversation import ConversationRepository
 from app.repositories.message import MessageRepository
 from app.repositories.message_context_summary import MessageContextSummaryRepository
-from app.services.llm import ILLMProvider
 from app.services.message import MessageService
+
+MERGE_SYSTEM_PROMPT = (
+    "以下是多个探索分支的结论，请综合分析后给出一份完整的合并结论。\n\n"
+    "## 合并要求\n"
+    "- 提取各分支的核心发现\n"
+    "- 识别共同主题和互补观点\n"
+    "- 如果存在冲突，分析各自的前提条件\n"
+    "- 给出整体性的理解和建议"
+)
 
 
 class MergeService:
@@ -20,12 +28,10 @@ class MergeService:
         conversation_repository: ConversationRepository,
         message_repository: MessageRepository,
         message_service: MessageService,
-        llm: ILLMProvider,
     ) -> None:
         self.conversation_repo = conversation_repository
         self.message_repo = message_repository
         self.message_service = message_service
-        self.llm = llm
 
     async def merge(
         self,
@@ -73,15 +79,6 @@ class MergeService:
             if parts:
                 conclusions.append("\n".join(parts))
 
-        MERGE_SYSTEM_PROMPT = (
-            "以下是多个探索分支的结论，请综合分析后给出一份完整的合并结论。\n\n"
-            "## 合并要求\n"
-            "- 提取各分支的核心发现\n"
-            "- 识别共同主题和互补观点\n"
-            "- 如果存在冲突，分析各自的前提条件\n"
-            "- 给出整体性的理解和建议"
-        )
-
         if not conclusions:
             merge_content = "No conclusions to merge."
         else:
@@ -90,16 +87,15 @@ class MergeService:
             )
             merge_content = branch_text
 
-        # Call LLM directly — no historical context, just system prompt + branch data
-        prompt = [
-            {"role": "system", "content": MERGE_SYSTEM_PROMPT},
-            {"role": "user", "content": merge_content},
-        ]
-        assistant_content = await self.llm.complete(prompt, scenario="merge")
-        assistant_msg = await self.message_repo.create(
+        # Delegate to MessageService — skip history, user message, and annotations
+        _, assistant_msg = await self.message_service.send_message(
             conversation_id=target_id,
-            role="assistant",
-            content=assistant_content,
+            role="user",
+            content=merge_content,
+            skip_user_message=True,
+            skip_history=True,
+            skip_annotations=True,
+            system_prompt=MERGE_SYSTEM_PROMPT,
             node_type="merge",
         )
 

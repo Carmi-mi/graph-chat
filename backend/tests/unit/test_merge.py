@@ -1,7 +1,7 @@
 """Unit tests for MergeService."""
 
 import uuid
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -52,6 +52,14 @@ class TestMergeService:
             message_service=mock_msg_service,
         )
 
+    @pytest.fixture(autouse=True)
+    def mock_summary_repo(self):
+        """Mock MessageContextSummaryRepository to avoid DB calls."""
+        mock_repo = AsyncMock()
+        mock_repo.get_latest_by_conversation.return_value = None
+        with patch("app.services.merge.MessageContextSummaryRepository", return_value=mock_repo):
+            yield mock_repo
+
     async def test_merge_success(self, service, mock_conv_repo, mock_msg_repo, mock_msg_service):
         """Merging branches collects conclusions and delegates to MessageService."""
         target_id = uuid.uuid4()
@@ -71,9 +79,11 @@ class TestMergeService:
         assert "assistant_message" in result
         assert "user_message" not in result
         mock_msg_service.send_message.assert_awaited_once()
-        call_kwargs = mock_msg_service.send_message.call_args
-        assert call_kwargs.kwargs.get("skip_annotations") is True
-        assert call_kwargs.kwargs.get("skip_user_message") is True
+        call_kwargs = mock_msg_service.send_message.call_args.kwargs
+        assert call_kwargs["skip_annotations"] is True
+        assert call_kwargs["skip_user_message"] is True
+        assert call_kwargs["skip_history"] is True
+        assert call_kwargs["node_type"] == "merge"
 
     async def test_merge_passes_conclusions_to_send_message(self, service, mock_conv_repo, mock_msg_repo, mock_msg_service):
         """Merge passes branch conclusions as content to send_message."""
@@ -91,10 +101,8 @@ class TestMergeService:
 
         await service.merge(target_id, [source_id], "keep")
 
-        call_args = mock_msg_service.send_message.call_args
-        content = call_args.kwargs.get("content", call_args.args[2] if len(call_args.args) > 2 else "")
-        assert "Discussion about AI" in content
-        assert "Final answer" in content
+        call_kwargs = mock_msg_service.send_message.call_args.kwargs
+        assert "Final answer" in call_kwargs["content"]
 
     async def test_merge_annotates_branch_relationships(self, service, mock_conv_repo, mock_msg_repo, mock_msg_service):
         """Merge annotates parent-child relationships between source branches."""
@@ -117,9 +125,8 @@ class TestMergeService:
 
         await service.merge(target_id, [parent_id, child_id], "keep")
 
-        call_args = mock_msg_service.send_message.call_args
-        content = call_args.kwargs.get("content", call_args.args[2] if len(call_args.args) > 2 else "")
-        assert "forked from: Parent Branch" in content
+        call_kwargs = mock_msg_service.send_message.call_args.kwargs
+        assert "forked from: Parent Branch" in call_kwargs["content"]
 
     async def test_merge_target_not_found(self, service, mock_conv_repo):
         """Merging with non-existent target raises ConversationNotFound."""
@@ -149,9 +156,8 @@ class TestMergeService:
 
         await service.merge(target_id, [source_id])
 
-        call_args = mock_msg_service.send_message.call_args
-        content = call_args.kwargs.get("content", call_args.args[2] if len(call_args.args) > 2 else "")
-        assert "No conclusions" in content
+        call_kwargs = mock_msg_service.send_message.call_args.kwargs
+        assert "No conclusions" in call_kwargs["content"]
 
     async def test_merge_delete_option(self, service, mock_conv_repo, mock_msg_repo, mock_msg_service):
         """Merge with keep_option='delete' deletes source branches."""

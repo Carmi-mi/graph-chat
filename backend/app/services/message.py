@@ -42,7 +42,7 @@ class MessageService:
         self._session_factory = session_factory
 
     async def send_message(
-        self, conversation_id: UUID, role: str, content: str, *, skip_annotations: bool = False, skip_user_message: bool = False,
+        self, conversation_id: UUID, role: str, content: str, *, skip_annotations: bool = False, skip_user_message: bool = False, skip_history: bool = False, system_prompt: str | None = None, node_type: str = "normal",
     ) -> tuple[Message | None, Message | None]:
         """Persist a message and optionally trigger an assistant auto-reply.
 
@@ -73,11 +73,12 @@ class MessageService:
         if role == "user":
             # Pass content as context only when not stored in DB
             reply_context = content if skip_user_message else None
-            assistant_content = await self._generate_reply(conversation_id, context=reply_context)
+            assistant_content = await self._generate_reply(conversation_id, context=reply_context, system_prompt=system_prompt, skip_history=skip_history)
             assistant_msg = await self.message_repo.create(
                 conversation_id=conversation_id,
                 role="assistant",
                 content=assistant_content,
+                node_type=node_type,
             )
 
             # Generate annotations + update summary in background (non-blocking)
@@ -194,25 +195,6 @@ class MessageService:
         else:
             logger.info("summary skipped: type=%s empty=%s", type(sum_result).__name__, not sum_result)
 
-    async def _generate_annotations(self, message_id: UUID, content: str, summary: str | None = None) -> None:
-        """Generate and persist annotations for an assistant message."""
-        try:
-            raw_annotations = await self.llm.generate_annotations(content, summary)
-            for ann in raw_annotations:
-                text = ann.get("text", "")
-                if not text:
-                    continue
-                await self.annotation_repo.create(
-                    message_id=message_id,
-                    text=text,
-                    start_offset=ann.get("startOffset"),
-                    end_offset=ann.get("endOffset"),
-                    suggestions=ann.get("suggestions", []),
-                )
-        except Exception:
-            # Annotation generation is non-critical; don't break message flow
-            pass
-
     async def get_messages(self, conversation_id: UUID) -> list[Message]:
         """Get all messages for a conversation."""
         return await self.message_repo.get_by_conversation(conversation_id)
@@ -224,10 +206,23 @@ class MessageService:
             raise MessageNotFound(message=f"Message {message_id} not found")
         return msg
 
-    async def _generate_reply(self, conversation_id: UUID, context: str | None = None) -> str:
+    async def _generate_reply(self, conversation_id: UUID, context: str | None = None, system_prompt: str | None = None, skip_history: bool = False) -> str:
         """Build chat history and ask the LLM for a reply."""
-        messages = await self.message_repo.get_by_conversation(conversation_id)
         chat_history: list[dict] = []
+
+        if skip_history:
+            # No historical context — just system prompt + context (e.g. merge)
+            if system_prompt:
+                chat_history.append({"role": "system", "content": system_prompt})
+            if context:
+                chat_history.append({"role": "user", "content": context})
+            return await self.llm.complete(chat_history)
+
+        messages = await self.message_repo.get_by_conversation(conversation_id)
+
+        # Prepend custom system prompt if provided (e.g. merge instructions)
+        if system_prompt:
+            chat_history.append({"role": "system", "content": system_prompt})
 
         # If this is a forked branch, prepend parent context
         fork_context = await self._get_fork_context(conversation_id)
@@ -278,10 +273,11 @@ class MessageService:
         summary = context_summary.summary if context_summary else None
 
         # Build context message
-        parts = []
+        parts = ["你正在一个探索分支中进行对话。这个分支是从主对话中分叉出来的，用于深入探索某个特定方向。\n"]
         if summary:
-            parts.append(f"以下是截止到该回复之前的对话摘要：\n{summary}")
+            parts.append(f"对话摘要：{summary}")
             logger.info("Fork context | summary=%s", summary[:100])
-        parts.append(f"以下是用户展开分支所依据的原始回复：\n{source_msg.content}")
+        parts.append(f"分支起点：用户基于以下内容展开了这个分支：\n{source_msg.content}")
         logger.info("Fork context | source_msg=%s", source_msg.content[:100])
+        parts.append("## 行为指导\n- 延续分支话题，深入探索\n- 保持与主对话的连贯性\n- 专注于分支主题，避免偏离到其他话题")
         return "\n\n".join(parts)
