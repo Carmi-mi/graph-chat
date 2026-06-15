@@ -226,14 +226,25 @@ class AgentEngine:
                             fork_text=selected_text,
                         )
                         # Create user message in child
+                        explore_content = (
+                            f"请深入探索以下方向：\n\n"
+                            f"探索主题：{suggestion_text}\n\n"
+                            "## 探索要求\n"
+                            "- 从多个角度分析这个主题\n"
+                            "- 提供具体例子和实际案例\n"
+                            "- 指出可能的限制和挑战\n"
+                            "- 建议进一步探索的方向"
+                            if suggestion_text
+                            else f"请深入探索：{selected_text}"
+                        )
                         await msg_repo.create(
                             conversation_id=child.id,
                             role="user",
-                            content=suggestion_text or f"Explore: {selected_text}",
+                            content=explore_content,
                         )
                         # Generate assistant reply
                         chat_history = [
-                            {"role": "user", "content": suggestion_text or f"Explore: {selected_text}"},
+                            {"role": "user", "content": explore_content},
                         ]
                         reply = await self.llm.complete(chat_history)
                         await msg_repo.create(

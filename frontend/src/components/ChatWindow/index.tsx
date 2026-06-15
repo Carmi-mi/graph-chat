@@ -290,7 +290,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversationId, onNavigate, onC
         if (branchNode?.forkText) {
           const hasUserMsg = branchNode.messages.some(m => m.role === 'user');
           if (!hasUserMsg) {
-            finalContent = `关于「${branchNode.forkText}」，我想深入了解：${content}`;
+            finalContent = `我正在从主对话中分叉出来，深入探索以下方向：\n主题：${branchNode.forkText}\n我的问题：${content}\n\n请围绕这个主题进行深入分析。`;
           }
         }
       }
@@ -405,7 +405,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversationId, onNavigate, onC
         messageApi.sendMessage({
           conversationId: child.id,
           role: 'user',
-          content: `关于「${selectedAnnotation.text}」，我想深入了解：${fullSuggestion}`,
+          content: `基于之前的对话，我想深入探讨：\n标注内容：${selectedAnnotation.text}\n探索方向：${fullSuggestion}\n\n请围绕这个主题进行深入分析。`,
           skipAnnotations: !parentAnnotationState,
         }).then(async (resp) => {
           const newMsgs = [resp.userMessage];
@@ -435,7 +435,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversationId, onNavigate, onC
       const fullSuggestion = suggestionDesc
         ? `${suggestionText}（${suggestionDesc}）`
         : suggestionText;
-      const question = `关于「${selectedAnnotation.text}」，我想深入了解：${fullSuggestion}`;
+      const question = `基于之前的对话，我想深入探讨：\n标注内容：${selectedAnnotation.text}\n探索方向：${fullSuggestion}\n\n请围绕这个主题进行深入分析。`;
       setSelectedAnnotation(null);
       setAnnotationPos(null);
       handleSend(question);

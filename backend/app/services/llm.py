@@ -125,10 +125,26 @@ class ILLMProvider(ABC):
         """Given content and annotations, suggest fork points."""
         ...
 
-    @abstractmethod
-    async def synthesize(self, conclusions: list[str]) -> str:
-        """Synthesize multiple conclusions into a single merged conclusion."""
-        ...
+
+
+SYSTEM_PROMPT_CHAT = (
+    "你是一个思维探索助手，帮助用户深入研究和探索各种话题。\n\n"
+    "## 角色定位\n"
+    "- 你是一个善于引导思考的对话伙伴\n"
+    "- 在解决用户需求的基础上，帮助用户从多个角度理解问题\n"
+    "- 鼓励深入探索，而非浅尝辄止\n\n"
+    "## 回答风格\n"
+    "- 结构清晰，使用标题和列表\n"
+    "- 提供具体例子和实际案例\n"
+    "- 指出可能的限制和挑战\n"
+    "- 适当引导用户思考更深层次的问题\n\n"
+    "## 语言要求\n"
+    "- 使用与用户相同的语言回答\n\n"
+    "## 输出格式\n"
+    "- 使用 Markdown 格式\n"
+    "- 适当使用标题、列表、加粗等格式\n"
+    "- 保持回答简洁但完整"
+)
 
 
 class OpenAIProvider(ILLMProvider):
@@ -139,6 +155,9 @@ class OpenAIProvider(ILLMProvider):
         self.model = model
 
     async def complete(self, messages: list[dict], scenario: str = "chat") -> str:
+        # Inject system prompt for chat scenario if no system message present
+        if scenario == "chat" and not any(m.get("role") == "system" for m in messages):
+            messages = [{"role": "system", "content": SYSTEM_PROMPT_CHAT}] + messages
         try:
             response = await self.client.chat.completions.create(
                 model=self.model,
@@ -166,19 +185,32 @@ class OpenAIProvider(ILLMProvider):
                     "你是一个思维启发助手。阅读以下AI回复文本，标注其中值得深入探索的关键词或短语。\n\n"
                     "## 标注规则\n"
                     "- 只标注关键词或短语（3-15个字），不要标注整句或整段\n"
-                    "- 标注内容必须与对话讨论的主题紧密相关，不要脱离上下文\n\n"
-                    "## 建议规则\n"
+                    "- 标注内容必须与对话讨论的主题紧密相关\n"
+                    "- 标注数量：3-5个，优先选择最有启发性的内容\n"
+                    "- 如果文本不包含值得深入探索的内容，返回空数组 []\n"
+                    "- 如果文本内容太简单，没有深度，返回空数组 []\n\n"
+                    "## 建议类型说明\n"
                     "对每个标注，给出1-2个建议，类型为以下之一：\n"
-                    "- 反直觉：提出与文中观点相反的角度\n"
-                    "- 跨领域类比：用其他领域的概念来质疑或补充\n"
-                    "- 现实反例：指出文中观点不成立的案例\n"
-                    "- 被忽略的角度：文中未考虑的重要维度\n\n"
-                    "建议必须紧扣对话主题，不要天马行空。\n\n"
+                    "- 反直觉：提出与文中观点相反的角度，例如\"这个结论在什么情况下不成立？\"\n"
+                    "- 跨领域类比：用其他领域的概念来质疑或补充，例如\"这让我想到了生物学中的...\"\n"
+                    "- 现实反例：指出文中观点不成立的现实案例\n"
+                    "- 被忽略的角度：文中未考虑的重要维度，例如\"如果从用户/成本/时间角度看呢？\"\n\n"
                     "## 输出格式\n"
                     "返回JSON数组，每个对象包含：\n"
-                    "- text: 标注的原文短语（3-15字），必须是原文中出现的准确文字\n"
-                    "- suggestions: 数组，每个元素包含 text（建议标题，8字以内）"
-                    "和 description（具体说明，20字以内）"
+                    "- text: 标注的原文短语（必须是原文中出现的准确文字）\n"
+                    "- suggestions: 数组，每个元素包含 text（建议类型）和 description（具体说明）\n\n"
+                    "## 示例\n"
+                    '输入：AI回复"远程办公提高了员工的工作效率，因为减少了通勤时间和办公室干扰。"\n'
+                    "输出：\n"
+                    "[\n"
+                    "  {\n"
+                    '    "text": "远程办公提高了员工的工作效率",\n'
+                    "    \"suggestions\": [\n"
+                    '      {"text": "反直觉视角", "description": "研究表明远程办公可能导致协作效率下降"},\n'
+                    '      {"text": "被忽略因素", "description": "家庭环境干扰可能比办公室更大"}\n'
+                    "    ]\n"
+                    "  }\n"
+                    "]"
                 ),
             },
             {"role": "user", "content": f"{context_text}\n当前AI回复内容：\n{content}"},
@@ -205,11 +237,19 @@ class OpenAIProvider(ILLMProvider):
                 "role": "system",
                 "content": (
                     "你是一个对话摘要维护助手。根据旧摘要和最新一轮对话，输出更新后的摘要。\n\n"
-                    "摘要要求：\n"
-                    "- 100字以内\n"
-                    "- 记录：用户目标、讨论的关键话题、当前方向\n"
-                    "- 简洁精炼，只保留对理解上下文有帮助的信息\n"
-                    "- 直接输出摘要文本，不要加任何前缀或格式"
+                    "## 摘要要求\n"
+                    "- 100字以内（如果对话复杂，可适当放宽到200字）\n"
+                    "- 必须包含：用户的核心目标、讨论的关键话题、当前进展方向\n"
+                    "- 优先保留：用户明确表达的需求、做出的决定、待解决的问题\n"
+                    "- 更新策略：用新信息补充或修正旧摘要，移除已不再相关的内容\n\n"
+                    "## 输出要求\n"
+                    "- 直接输出摘要文本，不要加任何前缀或格式\n"
+                    "- 使用简洁的短句，避免冗余描述\n\n"
+                    "## 示例\n"
+                    "旧摘要：用户想了解React状态管理方案，正在比较Redux和Zustand。\n"
+                    "用户：我觉得Zustand更适合我们的小项目，API更简洁。\n"
+                    "AI：同意，Zustand的学习成本低，适合快速开发...\n"
+                    "新摘要：用户决定在小项目中使用Zustand作为状态管理方案，原因是API简洁、学习成本低。正在探索具体实现方式。"
                 ),
             },
             {
@@ -232,9 +272,23 @@ class OpenAIProvider(ILLMProvider):
             {
                 "role": "system",
                 "content": (
-                    "Given a message and its annotations, suggest alternative "
-                    "branches or follow-up topics. Return a JSON array of objects "
-                    "with keys: 'selectedText', 'suggestion'."
+                    "根据消息内容和已有标注，建议可以深入探索的分支方向。\n\n"
+                    "## 建议要求\n"
+                    "- 数量：3-5个建议\n"
+                    "- 每个建议应该是一个独立的、值得深入探索的话题\n"
+                    "- 建议应该与原文内容相关，但能引向新的思考角度\n"
+                    "- 避免建议过于宽泛或重复\n\n"
+                    "## 输出格式\n"
+                    "返回JSON数组，每个对象包含：\n"
+                    "- selectedText: 从原文中选择的触发文本（精确引用）\n"
+                    "- suggestion: 建议的探索方向（简洁描述，10-20字）\n\n"
+                    "## 示例\n"
+                    '输入：Content: "机器学习需要大量标注数据来训练模型。"\n'
+                    "输出：\n"
+                    "[\n"
+                    '  {"selectedText": "大量标注数据", "suggestion": "探讨半监督学习或无监督学习的可能性"},\n'
+                    '  {"selectedText": "训练模型", "suggestion": "比较不同算法的训练效率差异"}\n'
+                    "]"
                 ),
             },
             {
@@ -256,32 +310,6 @@ class OpenAIProvider(ILLMProvider):
                 detail=str(exc),
             ) from exc
 
-    async def synthesize(self, conclusions: list[str]) -> str:
-        prompt = [
-            {
-                "role": "system",
-                "content": (
-                    "You are given multiple conclusions from exploration branches "
-                    "that may have hierarchical relationships (some branches are "
-                    "forked from others). Synthesize them into a single coherent "
-                    "conclusion, respecting the dependency chain."
-                ),
-            },
-            {
-                "role": "user",
-                "content": "\n\n".join(
-                    f"Branch {i + 1}: {c}" for i, c in enumerate(conclusions)
-                ),
-            },
-        ]
-        try:
-            return await self.complete(prompt, scenario="synthesize")
-        except Exception as exc:
-            raise LLMProviderError(
-                message=f"Synthesis failed: {exc}",
-                detail=str(exc),
-            ) from exc
-
 
 class MockLLMProvider(ILLMProvider):
     """Mock LLM provider for development and testing.
@@ -293,22 +321,19 @@ class MockLLMProvider(ILLMProvider):
         last = messages[-1]["content"] if messages else ""
         if len(messages) <= 1:
             reply = (
-                f"That's an interesting point about \"{last[:60]}\". "
-                "Let me think about this from a few angles.\n\n"
-                "First, we could explore the foundational assumptions behind this idea. "
-                "Second, there are practical implications worth considering. "
-                "Third, comparing this with alternative approaches might reveal new insights.\n\n"
-                "Would you like to dive deeper into any of these directions?"
+                f"关于「{last[:60]}」这个观点，让我从几个角度来分析。\n\n"
+                "首先，我们可以探讨其基础假设。其次，实际应用中可能面临一些挑战。"
+                "第三，与其他方法对比可能会带来新见解。\n\n"
+                "你希望深入探讨哪个方向？"
             )
         else:
             reply = (
-                f"Building on our discussion about \"{last[:40]}\"...\n\n"
-                "Here are some key considerations:\n"
-                "1. The core concept has strong theoretical backing\n"
-                "2. Practical implementation may face certain challenges\n"
-                "3. There are interesting parallels in related fields\n\n"
-                "I'd suggest we explore the practical aspects further, "
-                "as that seems most relevant to your research goals."
+                f"基于我们关于「{last[:40]}」的讨论...\n\n"
+                "以下是几个关键考虑：\n"
+                "1. 核心概念有坚实的理论基础\n"
+                "2. 实际实施可能面临某些挑战\n"
+                "3. 相关领域有有趣的相似之处\n\n"
+                "建议我们进一步探索实际应用方面，这似乎最符合你的研究目标。"
             )
         _log_llm(messages, reply, "mock", scenario)
         return reply
@@ -348,26 +373,17 @@ class MockLLMProvider(ILLMProvider):
         return [
             {
                 "selectedText": content[:min(40, len(content))],
-                "suggestion": "Explore the theoretical foundations",
+                "suggestion": "探讨其理论基础和前提假设",
             },
             {
                 "selectedText": content[:min(40, len(content))],
-                "suggestion": "Investigate practical applications",
+                "suggestion": "调查实际应用场景和效果",
             },
             {
                 "selectedText": content[:min(40, len(content))],
-                "suggestion": "Compare with competing approaches",
+                "suggestion": "与其他方法进行对比分析",
             },
         ]
-
-    async def synthesize(self, conclusions: list[str]) -> str:
-        merged = "; ".join(conclusions)
-        return (
-            f"After analyzing {len(conclusions)} exploration branches, "
-            f"here is the synthesized conclusion:\n\n{merged[:200]}\n\n"
-            "Key takeaway: The convergent themes across branches suggest "
-            "a robust understanding of the topic."
-        )
 
 
 def get_llm_provider_instance() -> ILLMProvider:
