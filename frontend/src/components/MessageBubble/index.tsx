@@ -272,7 +272,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
       <div className={`${message.nodeType === 'merge' ? 'w-full' : 'inline-flex'} flex-col items-start gap-0.5`}>
         {/* Annotation match indicator */}
         {!isUser && message.annotationsGenerated && (
-          <div className={`px-1.5 py-0.5 rounded-full text-[10px] font-mono ${
+          <div className={`px-1.5 py-0.5 rounded-full text-[10px] font-mono select-none ${
             matchInfo && matchInfo.total > 0
               ? (matchInfo.matched === matchInfo.total
                   ? 'bg-green-100 text-green-700 border border-green-300'
