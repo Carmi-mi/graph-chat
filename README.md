@@ -201,28 +201,9 @@ git clone https://github.com/Carmi-mi/graph-chat.git
 cd graph-chat
 ```
 
-### 2. 安装依赖
+### 2. 一键启动
 
-**前端依赖：**
-```bash
-cd frontend
-npm install
-```
-
-**后端依赖：**
-```bash
-cd backend
-python -m venv venv
-# Windows Git Bash
-source venv/Scripts/activate
-# macOS/Linux
-# source venv/bin/activate
-pip install -r requirements.txt
-```
-
-### 3. 启动服务
-
-右键 `start-dev.sh` 文件，选择 **Git** 打开即可。依赖已安装的情况下会直接启动服务。
+右键 `start-dev.sh` 文件，选择 **Git Bash** 打开即可。脚本会自动检测并安装缺失的依赖（前端 npm 包、后端虚拟环境及 pip 包），无需手动操作。
 
 ### 4. 配置 LLM
 

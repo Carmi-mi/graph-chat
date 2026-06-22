@@ -110,7 +110,7 @@ start_frontend() {
     # 检查是否已安装依赖
     if [ ! -d "node_modules" ]; then
         echo -e "${YELLOW}安装前端依赖...${NC}"
-        npm install
+        npm install --legacy-peer-deps
     fi
 
     # 启动开发服务器（后台运行）
