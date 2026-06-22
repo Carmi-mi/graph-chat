@@ -201,11 +201,30 @@ git clone https://github.com/Carmi-mi/graph-chat.git
 cd graph-chat
 ```
 
-### 2. 启动服务
+### 2. 安装依赖
 
-右键 `start-dev.sh` 文件，选择 **Git** 打开即可。首次运行会自动安装前后端依赖。
+**前端依赖：**
+```bash
+cd frontend
+npm install
+```
 
-### 3. 配置 LLM
+**后端依赖：**
+```bash
+cd backend
+python -m venv venv
+# Windows Git Bash
+source venv/Scripts/activate
+# macOS/Linux
+# source venv/bin/activate
+pip install -r requirements.txt
+```
+
+### 3. 启动服务
+
+右键 `start-dev.sh` 文件，选择 **Git** 打开即可。依赖已安装的情况下会直接启动服务。
+
+### 4. 配置 LLM
 
 启动后访问 http://localhost:5173，点击左下角齿轮图标进入 Settings 页面，配置：
 
@@ -219,7 +238,7 @@ cd graph-chat
 
 点击 Save 后自动测试连接，配置即刻生效。
 
-### 4. 访问
+### 5. 访问
 
 - 前端：http://localhost:5173
 - 后端 API：http://localhost:8000
