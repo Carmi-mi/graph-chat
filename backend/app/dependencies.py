@@ -36,6 +36,7 @@ if _is_sqlite:
     def _set_sqlite_pragma(dbapi_conn, connection_record):
         cursor = dbapi_conn.cursor()
         cursor.execute("PRAGMA busy_timeout=5000")
+        cursor.execute("PRAGMA auto_vacuum = INCREMENTAL")
         cursor.close()
 
 _session_factory = async_sessionmaker(_engine, class_=AsyncSession, expire_on_commit=False)
