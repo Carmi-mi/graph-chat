@@ -7,9 +7,9 @@ class Settings(BaseSettings):
     """Application settings loaded from environment variables / .env file."""
 
     DATABASE_URL: str = "sqlite+aiosqlite:///./graphchat.db"
-    OPENAI_API_KEY: str = "sk-7d5bd68c1ff64f80a52972455008a504"
-    OPENAI_MODEL: str = "deepseek-v4-flash"
-    OPENAI_BASE_URL: str = "https://api.deepseek.com"
+    OPENAI_API_KEY: str = ""
+    OPENAI_MODEL: str = "gpt-4"
+    OPENAI_BASE_URL: str = ""
     LLM_PROVIDER: str = "openai"
     CORS_ORIGINS: str = "http://localhost:5173"
     MAX_FORK_DEPTH: int = 2
