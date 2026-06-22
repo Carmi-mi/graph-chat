@@ -68,6 +68,7 @@ def _serialize_conversation(conv) -> dict:
                     }
                     for a in msg.annotations
                 ],
+                "annotationsGenerated": msg.annotations_generated,
                 "createdAt": msg.created_at.isoformat(),
             }
             for msg in conv.messages

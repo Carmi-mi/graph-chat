@@ -271,13 +271,15 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
     <div data-role={message.role} className={`flex ${isUser ? 'justify-end' : 'justify-start'} mb-4`}>
       <div className={`${message.nodeType === 'merge' ? 'w-full' : 'inline-flex'} flex-col items-start gap-0.5`}>
         {/* Annotation match indicator */}
-        {!isUser && matchInfo && matchInfo.total > 0 && (
+        {!isUser && message.annotationsGenerated && (
           <div className={`px-1.5 py-0.5 rounded-full text-[10px] font-mono ${
-            matchInfo.matched === matchInfo.total
-              ? 'bg-green-100 text-green-700 border border-green-300'
-              : 'bg-red-100 text-red-700 border border-red-300'
+            matchInfo && matchInfo.total > 0
+              ? (matchInfo.matched === matchInfo.total
+                  ? 'bg-green-100 text-green-700 border border-green-300'
+                  : 'bg-red-100 text-red-700 border border-red-300')
+              : 'bg-gray-100 text-gray-500 border border-gray-300'
           }`}>
-            {matchInfo.matched}/{matchInfo.total}
+            {matchInfo ? `${matchInfo.matched}/${matchInfo.total}` : '0/0'}
           </div>
         )}
         <div

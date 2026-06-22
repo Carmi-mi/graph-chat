@@ -89,35 +89,24 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversationId, onNavigate, onC
 
     const pollStart = Date.now();
     const interval = setInterval(() => {
-      annotationApi.getMessageAnnotations(targetMsgId).then((annotations) => {
-        if (annotations.length > 0) {
+      conversationApi.getConversation(pollConversationId).then((conv) => {
+        // Find the target message in the conversation tree
+        let targetMsg: { annotations: Annotation[]; annotationsGenerated: boolean } | null = null;
+        const findMsg = (node: typeof conv) => {
+          const found = node.messages.find(m => m.id === targetMsgId);
+          if (found) { targetMsg = found; return; }
+          node.children.forEach(findMsg);
+        };
+        findMsg(conv);
+
+        if (targetMsg && targetMsg.annotationsGenerated) {
           clearAnnotationPoll(targetMsgId);
           onDone?.();
           // Reset annotation toggle to off after generation completes
           useUIStore.getState().setAnnotationEnabled(pollBranchId, false);
-          // Always update the conversation cache regardless of current view
+          // Update conversation cache
           const s = useConversationStore.getState();
-          const cached = s.conversationCache[pollConversationId];
-          if (cached) {
-            s.updateCachedConversation(pollConversationId, (conv) => {
-              const updateNode = (node: typeof conv): typeof conv => {
-                const updatedMessages = node.messages.map((m) =>
-                  m.id === targetMsgId ? { ...m, annotations } : m,
-                );
-                const updatedChildren = node.children.map(updateNode);
-                if (updatedMessages !== node.messages || updatedChildren !== node.children) {
-                  return { ...node, messages: updatedMessages, children: updatedChildren };
-                }
-                return node;
-              };
-              return updateNode(conv);
-            });
-          } else {
-            // Cache missing — fetch full conversation to populate cache
-            conversationApi.getConversation(pollConversationId).then((conv) => {
-              useConversationStore.getState().setCurrentConversation(conv);
-            }).catch(() => {});
-          }
+          s.setCurrentConversation(conv);
           // Show status on annotation button if user is viewing this branch
           if (s.currentConversation?.id === pollConversationId && s.currentBranchId === pollBranchId) {
             setAnnotationDone(true);

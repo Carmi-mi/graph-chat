@@ -26,6 +26,7 @@ class MessageResponse(BaseModel):
     content: str
     node_type: str = Field("normal", alias="nodeType")
     annotations: list["AnnotationResponse"] = Field(default_factory=list)
+    annotations_generated: bool = Field(False, alias="annotationsGenerated")
     created_at: datetime = Field(..., alias="createdAt")
 
 

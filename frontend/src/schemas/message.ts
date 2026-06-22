@@ -7,6 +7,7 @@ export interface Message {
   content: string;
   nodeType: 'normal' | 'annotation' | 'merge';
   annotations: Annotation[];
+  annotationsGenerated: boolean;
   createdAt: string;
 }
 

@@ -51,10 +51,12 @@ class ConversationRepository(BaseRepository[Conversation]):
         Also cleans up message_relations and merge_records that FK to
         messages/conversations being deleted.
         """
-        from sqlalchemy import select
+        from sqlalchemy import delete as sql_delete, select
+        from app.models.annotation import Annotation
         from app.models.message import Message
         from app.models.message_relation import MessageRelation
         from app.models.merge_record import MergeRecord
+        from app.models.message_context_summary import MessageContextSummary
 
         # Collect all message IDs in this conversation tree (recursive)
         msg_ids: set[UUID] = set()
@@ -76,15 +78,22 @@ class ConversationRepository(BaseRepository[Conversation]):
             result = await self.session.execute(stmt)
             msg_ids = {row[0] for row in result.all()}
 
-        # Delete message_relations referencing these messages
+        # Delete annotations referencing these messages
         if msg_ids:
             await self.session.execute(
-                select(MessageRelation).where(
-                    (MessageRelation.parent_id.in_(msg_ids))
-                    | (MessageRelation.child_id.in_(msg_ids))
+                sql_delete(Annotation).where(Annotation.message_id.in_(msg_ids))
+            )
+
+        # Delete message_context_summaries referencing these messages
+        if msg_ids:
+            await self.session.execute(
+                sql_delete(MessageContextSummary).where(
+                    MessageContextSummary.message_id.in_(msg_ids)
                 )
             )
-            from sqlalchemy import delete as sql_delete
+
+        # Delete message_relations referencing these messages
+        if msg_ids:
             await self.session.execute(
                 sql_delete(MessageRelation).where(
                     (MessageRelation.parent_id.in_(msg_ids))
@@ -94,7 +103,6 @@ class ConversationRepository(BaseRepository[Conversation]):
 
         # Delete merge_records targeting these conversations
         if conv_ids:
-            from sqlalchemy import delete as sql_delete
             await self.session.execute(
                 sql_delete(MergeRecord).where(MergeRecord.target_id.in_(conv_ids))
             )

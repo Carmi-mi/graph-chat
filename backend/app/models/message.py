@@ -2,7 +2,7 @@
 
 import uuid
 
-from sqlalchemy import ForeignKey, String, Text, Uuid
+from sqlalchemy import Boolean, ForeignKey, String, Text, Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base
@@ -19,6 +19,7 @@ class Message(Base):
     role: Mapped[str] = mapped_column(String(50), nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
     node_type: Mapped[str] = mapped_column(String(50), default="normal", nullable=False)
+    annotations_generated: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     # Relationships
     conversation = relationship(

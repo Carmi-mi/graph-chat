@@ -195,6 +195,21 @@ class MessageService:
         else:
             logger.info("summary skipped: type=%s empty=%s", type(sum_result).__name__, not sum_result)
 
+        # Mark annotations_generated = True regardless of annotation count
+        try:
+            async with self._session_factory() as session:
+                from sqlalchemy import update as sql_update
+                from app.models.message import Message as MessageModel
+                await session.execute(
+                    sql_update(MessageModel)
+                    .where(MessageModel.id == message_id)
+                    .values(annotations_generated=True)
+                )
+                await session.commit()
+                logger.info("annotations_generated set for message %s", message_id)
+        except Exception:
+            logger.warning("failed to set annotations_generated", exc_info=True)
+
     async def get_messages(self, conversation_id: UUID) -> list[Message]:
         """Get all messages for a conversation."""
         return await self.message_repo.get_by_conversation(conversation_id)
